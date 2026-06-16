@@ -143,6 +143,12 @@ async function handleMessagingEvent(entry, event) {
 
   try {
     const scheduleContext = await scheduleService.getAiScheduleContext(company);
+    const bookingReply = await tryCreateChatBooking(text, company, senderId, scheduleContext);
+    if (bookingReply) {
+      await sendTextMessage(senderId, bookingReply);
+      return;
+    }
+
     const directReply = buildDirectReply(text, company, scheduleContext);
     if (directReply) {
       await sendTextMessage(senderId, directReply);
@@ -162,6 +168,65 @@ async function handleMessagingEvent(entry, event) {
 function includesAny(text, words) {
   const lower = String(text || '').toLowerCase();
   return words.some((word) => lower.includes(word));
+}
+
+function extractRequestedHour(text) {
+  const normalized = String(text || '').toLowerCase();
+  const match = normalized.match(/(?:^|\D)([01]?\d|2[0-4])(?::[0-5]\d)?\s*(?:цаг|tsag|:|h)?(?:\D|$)/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  return hour >= 1 && hour <= 24 ? hour : null;
+}
+
+function isBookingIntent(text) {
+  return includesAny(text, [
+    'авъя',
+    'авья',
+    'awya',
+    'awii',
+    'awiy',
+    'авах',
+    'zahial',
+    'захиал',
+    'бүртг',
+    'burtg',
+    'book',
+  ]);
+}
+
+async function tryCreateChatBooking(userText, company, senderId, context) {
+  const text = String(userText || '').toLowerCase();
+  const hour = extractRequestedHour(text);
+  if (!hour || !isBookingIntent(text)) return null;
+
+  const date = includesAny(text, ['маргааш', 'margaash']) ? context.tomorrow : context.today;
+  const available =
+    date === context.tomorrow
+      ? Array.isArray(context.tomorrowAvailable)
+        ? context.tomorrowAvailable
+        : []
+      : Array.isArray(context.todayAvailable)
+        ? context.todayAvailable
+        : [];
+  const label = scheduleService.hourLabel(hour);
+
+  if (!available.includes(label)) {
+    return available.length
+      ? `Уучлаарай, ${label} цаг боломжгүй байна. Сул цагууд: ${available.join(', ')}`
+      : date === context.tomorrow
+        ? 'Маргааш ажиллахгүй өдөр өө'
+        : 'Өнөөдөр сул цаг байхгүй ээ';
+  }
+
+  await scheduleService.createBooking(
+    company,
+    date,
+    hour,
+    `Messenger user ${senderId}`,
+    senderId
+  );
+
+  return `Баталгаажлаа. ${date} өдөр ${label} цагт таны захиалга бүртгэгдлээ.`;
 }
 
 function buildDirectReply(userText, company, context) {
