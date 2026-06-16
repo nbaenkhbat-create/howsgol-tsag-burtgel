@@ -10,6 +10,7 @@ const GROQ_MODEL = 'llama-3.3-70b-specdec';
 const GROQ_MODEL_FALLBACK = 'llama-3.3-70b-versatile';
 const PUBLIC_HOME = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
 const PUBLIC_ERROR_REPLY = 'Уучлаарай, AI хариу өгч чадсангүй. https://howsgol-tsag-burtgel.onrender.com/';
+const PUBLIC_HOME_REPLY = 'https://howsgol-tsag-burtgel.onrender.com/';
 
 function getEnv(name) {
   return (process.env[name] || '').trim();
@@ -132,7 +133,7 @@ async function handleMessagingEvent(entry, event) {
       pageId: entry.id,
       senderId,
     });
-    await sendTextMessage(senderId, PUBLIC_ERROR_REPLY).catch((err) =>
+    await sendTextMessage(senderId, PUBLIC_HOME_REPLY).catch((err) =>
       logError('Company missing fallback send', err)
     );
     return;
@@ -170,6 +171,23 @@ function buildDirectReply(userText, company, context) {
   const username = company.username || '';
   const todayAvailable = Array.isArray(context.todayAvailable) ? context.todayAvailable : [];
   const tomorrowAvailable = Array.isArray(context.tomorrowAvailable) ? context.tomorrowAvailable : [];
+
+  if (
+    includesAny(text, [
+      'сайн байна',
+      'сайн уу',
+      'sain baina',
+      'sain uu',
+      'sn bnu',
+      'sn bn',
+      'hi',
+      'hello',
+      'hey',
+    ])
+  ) {
+    const companyName = company.company_name || company.companyName || username;
+    return `Сайн байна уу. ${companyName}-ийн цаг захиалгын туслах байна. Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно.`;
+  }
 
   if (includesAny(text, ['байршил', 'bairshil', 'хаана', 'haana', 'хаяг', 'hayg', 'map'])) {
     return locationLink || PUBLIC_HOME + '/';
