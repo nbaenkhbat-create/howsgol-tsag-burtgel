@@ -83,6 +83,7 @@ function cleanCompanyPayload(body = {}, existingUsername = '') {
     username,
     password: body.password,
     page_link: body.page_link,
+    page_id: body.page_id,
     info_phone: body.info_phone,
     location_link: body.location_link,
     website_link:

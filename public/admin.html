@@ -61,6 +61,10 @@
         <div class="muted" style="font-size:12px;margin-top:4px;">Page URL дээр `id=...` байвал шууд хуулж болно.</div>
       </div>
       <div class="field">
+        <label>5.1. Facebook Page ID (автоматаар бөглөгдөнө)</label>
+        <input type="text" id="page_id" placeholder="100095482988969" />
+      </div>
+      <div class="field">
         <label>6. Лавлах утас</label>
         <input type="tel" id="info_phone" placeholder="77112233" />
       </div>
@@ -89,7 +93,7 @@
   <script>
     const { api, showAlert, token, el } = App;
     const TK = token('admin_token');
-    const fields = ['company_name','phone','username','password','page_link','info_phone','location_link','website_link'];
+    const fields = ['company_name','phone','username','password','page_link','page_id','info_phone','location_link','website_link'];
 
     const loginView = document.getElementById('loginView');
     const dashView = document.getElementById('dashView');
@@ -104,6 +108,10 @@
     function getForm() {
       const payload = {};
       fields.forEach((id) => payload[id] = document.getElementById(id).value.trim());
+      if (!payload.page_id && payload.page_link) {
+        const match = payload.page_link.match(/\d{8,}/);
+        if (match) payload.page_id = match[0];
+      }
       if (!payload.website_link && payload.username) {
         payload.website_link = location.origin + '/' + payload.username.toLowerCase();
       }
@@ -127,6 +135,7 @@
       document.getElementById('username').disabled = true;
       document.getElementById('password').value = '';
       document.getElementById('page_link').value = v.page_link || '';
+      document.getElementById('page_id').value = v.page_id || '';
       document.getElementById('info_phone').value = v.info_phone || '';
       document.getElementById('location_link').value = v.location_link || '';
       document.getElementById('website_link').value = v.website_link || (location.origin + '/' + v.username);
@@ -158,6 +167,13 @@
       e.preventDefault();
       TK.clear();
       setLoggedIn(false);
+    });
+
+    document.getElementById('page_link').addEventListener('input', (e) => {
+      const match = e.target.value.match(/\d{8,}/);
+      if (match && !document.getElementById('page_id').value.trim()) {
+        document.getElementById('page_id').value = match[0];
+      }
     });
 
     document.getElementById('cancelEditBtn').addEventListener('click', clearForm);

@@ -37,9 +37,20 @@ function extractFacebookPageKeys(value) {
   return [...keys].filter(Boolean);
 }
 
+function extractPrimaryFacebookPageId(value) {
+  const keys = extractFacebookPageKeys(value);
+  return keys.find((key) => /^\d{8,}$/.test(key)) || keys[1] || keys[0] || '';
+}
+
 function normalizeCompanyInput(input = {}, existing = null) {
   const username = normalizeUsername(input.username ?? existing?.username);
   const companyName = String(input.company_name ?? input.companyName ?? existing?.company_name ?? '').trim();
+  const pageLink = String(input.page_link ?? existing?.page_link ?? '').trim();
+  const pageId = String(
+    input.page_id ??
+      existing?.page_id ??
+      extractPrimaryFacebookPageId(pageLink)
+  ).trim();
   const passwordInput = input.password != null ? String(input.password) : '';
   const passwordHash =
     passwordInput && !passwordInput.startsWith('$2')
@@ -52,7 +63,8 @@ function normalizeCompanyInput(input = {}, existing = null) {
     username,
     // Field name нь шаардлагын дагуу `password`, утга нь plaintext биш bcrypt hash.
     password: passwordHash,
-    page_link: String(input.page_link ?? existing?.page_link ?? '').trim(),
+    page_link: pageLink,
+    page_id: pageId,
     info_phone: String(input.info_phone ?? existing?.info_phone ?? '').trim(),
     location_link: String(input.location_link ?? existing?.location_link ?? '').trim(),
     website_link: String(
@@ -84,6 +96,7 @@ function toPublicCompany(doc) {
     phone: doc.phone || '',
     username: doc.username || '',
     page_link: doc.page_link || '',
+    page_id: doc.page_id || extractPrimaryFacebookPageId(doc.page_link || ''),
     info_phone: doc.info_phone || '',
     location_link: doc.location_link || '',
     website_link: doc.website_link || '',
@@ -100,6 +113,7 @@ function localVendorToCompany(v) {
     username: v.username,
     password: v.passwordHash || v.password || '',
     page_link: v.page_link || '',
+    page_id: v.page_id || extractPrimaryFacebookPageId(v.page_link || ''),
     info_phone: v.info_phone || v.phone || '',
     location_link: v.location_link || '',
     website_link:
@@ -150,17 +164,21 @@ async function findCompanyByPage(entry = {}) {
   const pageId = String(entry.id || entry.page_id || '').trim();
   if (!pageId) return null;
 
-  const pageKeys = extractFacebookPageKeys(pageId);
+  const pageKeys = new Set([
+    ...extractFacebookPageKeys(pageId),
+    ...extractFacebookPageKeys(entry.page_link),
+  ].map((key) => String(key).toLowerCase()));
   const companies = await listCompanies();
   return (
     companies.find((company) => {
       const pageLink = String(company.page_link || '').trim();
       const companyKeys = new Set([
+        company.page_id,
         ...extractFacebookPageKeys(pageLink),
         company.username,
       ].map((key) => String(key).toLowerCase()));
 
-      return pageKeys.some((key) => companyKeys.has(String(key).toLowerCase()));
+      return [...pageKeys].some((key) => companyKeys.has(String(key).toLowerCase()));
     }) || null
   );
 }
@@ -207,6 +225,7 @@ async function createCompany(input) {
     passwordHash: company.password,
     phone: company.phone,
     page_link: company.page_link,
+    page_id: company.page_id,
     info_phone: company.info_phone,
     location_link: company.location_link,
     website_link: company.website_link,
@@ -286,6 +305,7 @@ async function updateCompany(idOrUsername, input) {
     passwordHash: merged.password || data.vendors[idx].passwordHash,
     phone: merged.phone,
     page_link: merged.page_link,
+    page_id: merged.page_id,
     info_phone: merged.info_phone,
     location_link: merged.location_link,
     website_link: merged.website_link,
