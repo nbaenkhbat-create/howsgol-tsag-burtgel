@@ -154,9 +154,9 @@ input:focus {
 /* Legend */
 .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 16px; font-size: 13px; color: var(--muted); }
 .legend .dot { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 6px; vertical-align: -1px; }
-.dot.available { background: #fff; border: 1px solid var(--border); }
-.dot.booked { background: var(--primary); }
-.dot.blocked { background: var(--muted); }
+.dot.available { background: #bbf7d0; border: 1px solid #86efac; }
+.dot.booked { background: #fde68a; border: 1px solid #f59e0b; }
+.dot.blocked { background: #fecaca; border: 1px solid #ef4444; }
 
 /* ============================================================
    Цагийн сүлжээ (Time slots) — 12-оор 2 эгнээ, responsive
@@ -200,18 +200,23 @@ input:focus {
 .slot:hover { border-color: var(--primary); }
 .slot:active { transform: translateY(1px); }
 
-.slot.available { background: #fff; }
+.slot.available {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+.slot.available .label { color: #15803d; }
 .slot.booked {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
   cursor: default;
 }
-.slot.booked .label { color: rgba(255,255,255,0.85); }
+.slot.booked .label { color: #b45309; }
 .slot.blocked {
-  background: var(--bg-soft);
-  border-color: var(--border);
-  color: var(--muted);
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
 }
 .slot.selected {
   border-color: var(--amber);
