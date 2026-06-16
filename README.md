@@ -13,6 +13,27 @@ npm start
 
 > Dev горим (файл өөрчлөгдөхөд автоматаар restart): `npm run dev`
 
+## Render дээр deploy (Үнэгүй)
+
+1. Энэ линк дээр дарна:  
+   **https://render.com/deploy?repo=https://github.com/nbaenkhbat-create/howsgol-tsag-burtgel**
+2. GitHub account-аа холбоно (Render-д нэвтэрнэ).
+3. **Apply** / **Deploy Blueprint** дарна.
+4. Deploy дуусах хүртэл 2–5 мин хүлээнэ.
+
+Deploy дуусмагц:
+
+| Хуудас | Хаяг |
+|--------|------|
+| Нүүр | `https://howsgol-tsag-burtgel.onrender.com/` |
+| Глобал Админ | `https://howsgol-tsag-burtgel.onrender.com/admin-secretify` |
+
+**Админ нэвтрэх:** Render Dashboard → Service → **Environment** хэсэгт:
+- `SUPERADMIN_USER` (default: `superadmin`)
+- `SUPERADMIN_PASS` (Render автоматаар үүсгэсэн random нууц үг — энд харагдана)
+
+> Free plan: 15 мин идэхээгүй бол унана (эхний ачаалал удаан). MongoDB шаардлагагүй.
+
 ## 3 төрлийн хаяг (URL Architecture)
 
 | Төрөл | Хаяг | Тайлбар |

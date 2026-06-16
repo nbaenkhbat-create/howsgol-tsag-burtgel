@@ -396,6 +396,6 @@ app.use((req, res) => {
 });
 
 bootstrapSuperAdmin();
-app.listen(PORT, () => {
-  console.log(`Цаг бүртгэлийн систем ажиллаж байна:  http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Цаг бүртгэлийн систем ажиллаж байна:  port ${PORT}`);
 });
