@@ -43,6 +43,7 @@ function logError(context, err) {
 
 let groqClient = null;
 let groqClientKey = '';
+const pendingBookings = new Map();
 
 function getGroq() {
   const apiKey = getEnv('GROQ_API_KEY');
@@ -143,6 +144,12 @@ async function handleMessagingEvent(entry, event) {
 
   try {
     const scheduleContext = await scheduleService.getAiScheduleContext(company);
+    const pendingReply = await continuePendingBooking(text, company, senderId);
+    if (pendingReply) {
+      await sendTextMessage(senderId, pendingReply);
+      return;
+    }
+
     const bookingReply = await tryCreateChatBooking(text, company, senderId, scheduleContext);
     if (bookingReply) {
       await sendTextMessage(senderId, bookingReply);
@@ -170,12 +177,67 @@ function includesAny(text, words) {
   return words.some((word) => lower.includes(word));
 }
 
+function pendingKey(company, senderId) {
+  return `${company.username}:${senderId}`;
+}
+
 function extractRequestedHour(text) {
   const normalized = String(text || '').toLowerCase();
   const match = normalized.match(/(?:^|\D)([01]?\d|2[0-4])(?::[0-5]\d)?\s*(?:цаг|tsag|:|h)?(?:\D|$)/);
   if (!match) return null;
   const hour = Number(match[1]);
   return hour >= 1 && hour <= 24 ? hour : null;
+}
+
+function parseNameAndPhone(text) {
+  const raw = String(text || '').trim();
+  const phoneMatch = raw.match(/(?:\+?976[-\s]?)?(\d{8})/);
+  if (!phoneMatch) return null;
+  const phone = phoneMatch[1];
+  let name = raw
+    .replace(phoneMatch[0], ' ')
+    .replace(/нэр\s*[:=-]?/gi, ' ')
+    .replace(/ner\s*[:=-]?/gi, ' ')
+    .replace(/утас\s*[:=-]?/gi, ' ')
+    .replace(/utas\s*[:=-]?/gi, ' ')
+    .replace(/[,\-:;|]+/g, ' ')
+    .trim();
+
+  if (!name) return null;
+  name = name.split(/\s+/).slice(0, 4).join(' ');
+  return { name, phone };
+}
+
+async function continuePendingBooking(userText, company, senderId) {
+  const key = pendingKey(company, senderId);
+  const pending = pendingBookings.get(key);
+  if (!pending) return null;
+
+  if (includesAny(userText, ['болих', 'bolih', 'цуцал', 'tsutsal', 'cancel'])) {
+    pendingBookings.delete(key);
+    return 'Захиалга цуцлагдлаа.';
+  }
+
+  const info = parseNameAndPhone(userText);
+  if (!info) {
+    return 'Захиалга баталгаажуулахын тулд нэр болон 8 оронтой утасны дугаараа нэг мессежээр илгээнэ үү. Жишээ: Бат 99112233';
+  }
+
+  try {
+    await scheduleService.createBooking(
+      company,
+      pending.date,
+      pending.hour,
+      info.name,
+      info.phone
+    );
+    pendingBookings.delete(key);
+    return `Баталгаажлаа. ${pending.date} өдөр ${scheduleService.hourLabel(pending.hour)} цагт ${info.name} нэрээр таны захиалга бүртгэгдлээ.`;
+  } catch (err) {
+    pendingBookings.delete(key);
+    logError('Pending booking create', err);
+    return 'Уучлаарай, энэ цаг дөнгөж сая боломжгүй боллоо. Өөр цаг сонгоно уу.';
+  }
 }
 
 function isBookingIntent(text) {
@@ -218,15 +280,20 @@ async function tryCreateChatBooking(userText, company, senderId, context) {
         : 'Өнөөдөр сул цаг байхгүй ээ';
   }
 
-  await scheduleService.createBooking(
-    company,
-    date,
-    hour,
-    `Messenger user ${senderId}`,
-    senderId
-  );
+  const info = parseNameAndPhone(userText);
+  if (!info) {
+    pendingBookings.set(pendingKey(company, senderId), {
+      companyId: company.id,
+      date,
+      hour,
+      createdAt: Date.now(),
+    });
+    return `${date} өдөр ${label} цагийг баталгаажуулахын тулд нэр болон утасны дугаараа илгээнэ үү. Жишээ: Бат 99112233`;
+  }
 
-  return `Баталгаажлаа. ${date} өдөр ${label} цагт таны захиалга бүртгэгдлээ.`;
+  await scheduleService.createBooking(company, date, hour, info.name, info.phone);
+
+  return `Баталгаажлаа. ${date} өдөр ${label} цагт ${info.name} нэрээр таны захиалга бүртгэгдлээ.`;
 }
 
 function buildDirectReply(userText, company, context) {
@@ -280,7 +347,7 @@ function buildDirectReply(userText, company, context) {
       : 'Өнөөдөр сул цаг байхгүй ээ';
   }
 
-  return null;
+  return `${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.`;
 }
 
 function buildSystemPrompt(company, context) {
