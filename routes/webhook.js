@@ -180,13 +180,18 @@ function buildDirectReply(userText, company, context) {
       'sain uu',
       'sn bnu',
       'sn bn',
+      'snu',
       'hi',
       'hello',
       'hey',
     ])
   ) {
     const companyName = company.company_name || company.companyName || username;
-    return `Сайн байна уу. ${companyName}-ийн цаг захиалгын туслах байна. Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно.`;
+    return `Сайн байна уу. ${companyName}-ийн цаг захиалгын туслах байна. Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно. Цаг захиалах бол ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаарай.`;
+  }
+
+  if (includesAny(text, ['юу хийж', 'yu hiij', 'юу хийдэг', 'yu hiideg', 'тусламж', 'help', 'menu'])) {
+    return `Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно. Цаг захиалах бол ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаарай.`;
   }
 
   if (includesAny(text, ['байршил', 'bairshil', 'хаана', 'haana', 'хаяг', 'hayg', 'map'])) {
