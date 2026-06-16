@@ -19,3 +19,5 @@ services:
         sync: false
       - key: VERIFY_TOKEN
         value: howsgol-ai_2026
+      - key: GROQ_API_KEY
+        sync: false
