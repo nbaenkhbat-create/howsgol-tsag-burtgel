@@ -24,9 +24,21 @@ services:
       - key: PUBLIC_BASE_URL
         value: https://howsgol-tsag-burtgel.onrender.com
       - key: FIREBASE_PROJECT_ID
-        sync: false
+        value: ai-cue-pro
       - key: FIREBASE_DATABASE_URL
-        sync: false
+        value: https://ai-cue-pro-default-rtdb.asia-southeast1.firebasedatabase.app
+      - key: FIREBASE_API_KEY
+        value: AIzaSyBCrvZnqq8cDCoKlVbaikbfbbD5dNmltSs
+      - key: FIREBASE_AUTH_DOMAIN
+        value: ai-cue-pro.firebaseapp.com
+      - key: FIREBASE_STORAGE_BUCKET
+        value: ai-cue-pro.firebasestorage.app
+      - key: FIREBASE_MESSAGING_SENDER_ID
+        value: "1057758563241"
+      - key: FIREBASE_APP_ID
+        value: 1:1057758563241:web:d0aec261c0de07eff612b8
+      - key: FIREBASE_MEASUREMENT_ID
+        value: G-XKNZ18Q61H
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
