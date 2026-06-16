@@ -2,6 +2,7 @@ const { getData, save, nextId } = require('../db');
 const { getFirestore, isFirebaseConfigured } = require('./firebase');
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
+const DEFAULT_BOOKING_RETENTION_DAYS = 60;
 
 function todayStr(offsetDays = 0) {
   const d = new Date();
@@ -280,6 +281,46 @@ async function deleteBooking(companyOrId, bookingId) {
   save();
 }
 
+async function cleanupExpiredBookings(retentionDays = Number(process.env.BOOKING_RETENTION_DAYS || DEFAULT_BOOKING_RETENTION_DAYS)) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - retentionDays);
+  const cutoffIso = cutoff.toISOString();
+
+  if (isFirebaseConfigured()) {
+    const snap = await getFirestore()
+      .collection('bookings')
+      .where('createdAt', '<', cutoffIso)
+      .get();
+
+    if (snap.empty) return 0;
+
+    let deleted = 0;
+    for (let i = 0; i < snap.docs.length; i += 450) {
+      const batch = getFirestore().batch();
+      snap.docs.slice(i, i + 450).forEach((doc) => {
+        batch.delete(doc.ref);
+        deleted += 1;
+      });
+      await batch.commit();
+    }
+    console.log(`[Bookings] ${deleted} хуучин захиалга устгалаа (${retentionDays} өдөр+).`);
+    return deleted;
+  }
+
+  const data = getData();
+  const before = data.bookings.length;
+  data.bookings = data.bookings.filter((booking) => {
+    if (!booking.createdAt) return true;
+    return new Date(booking.createdAt).toISOString() >= cutoffIso;
+  });
+  const deleted = before - data.bookings.length;
+  if (deleted > 0) {
+    save();
+    console.log(`[Bookings] ${deleted} хуучин захиалга устгалаа (${retentionDays} өдөр+).`);
+  }
+  return deleted;
+}
+
 module.exports = {
   HOURS,
   todayStr,
@@ -293,4 +334,5 @@ module.exports = {
   createBooking,
   listBookings,
   deleteBooking,
+  cleanupExpiredBookings,
 };

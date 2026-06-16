@@ -375,6 +375,14 @@ app.use((_req, res) => {
 });
 
 bootstrapSuperAdmin();
+scheduleService.cleanupExpiredBookings().catch((err) => {
+  console.error('[Bookings] Хуучин захиалга устгах cleanup алдаа:', err);
+});
+setInterval(() => {
+  scheduleService.cleanupExpiredBookings().catch((err) => {
+    console.error('[Bookings] Давтамжит cleanup алдаа:', err);
+  });
+}, 24 * 60 * 60 * 1000);
 companyService.ensureDefaultCompany().catch((err) => {
   console.error('[Company] Default company seed алдаа:', err);
 });

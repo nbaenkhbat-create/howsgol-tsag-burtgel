@@ -122,7 +122,7 @@ async function findCompanyByPage(entry = {}) {
   if (!pageId) return null;
 
   const companies = await listCompanies();
-  const matched =
+  return (
     companies.find((company) => {
       const pageLink = String(company.page_link || '').trim();
       return (
@@ -131,21 +131,8 @@ async function findCompanyByPage(entry = {}) {
         pageLink.endsWith(`/${pageId}`) ||
         company.username === pageId
       );
-    }) || null;
-
-  if (matched) return matched;
-
-  // Эхний MVP үед нэг л компани бүртгэлтэй бол Facebook page id/link таараагүй ч
-  // тухайн ганц компанийг ашиглаж chatbot-ыг ажиллуулна.
-  if (companies.length === 1) {
-    console.warn('[Company] Page ID таараагүй ч ганц компани байгаа тул fallback ашиглав:', {
-      pageId,
-      username: companies[0].username,
-    });
-    return companies[0];
-  }
-
-  return null;
+    }) || null
+  );
 }
 
 async function searchCompanies(query) {
@@ -201,7 +188,19 @@ async function createCompany(input) {
   return toPublicCompany(localVendorToCompany(vendor));
 }
 
+async function deleteDocsInChunks(db, docs) {
+  for (let i = 0; i < docs.length; i += 450) {
+    const batch = db.batch();
+    docs.slice(i, i + 450).forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+}
+
 async function ensureDefaultCompany() {
+  if (String(process.env.DEFAULT_COMPANY_AUTO_SEED || '').toLowerCase() !== 'true') {
+    return null;
+  }
+
   const username = normalizeUsername(process.env.DEFAULT_COMPANY_USERNAME || 'bayr');
   if (!username) return null;
 
@@ -269,7 +268,21 @@ async function updateCompany(idOrUsername, input) {
 async function deleteCompany(username) {
   const uname = normalizeUsername(username);
   if (await useFirestore()) {
-    await getFirestore().collection('companies').doc(uname).delete();
+    const db = getFirestore();
+    const company = await findCompanyByUsername(uname);
+    const companyIds = [uname, company?.id].filter(Boolean);
+
+    for (const companyId of companyIds) {
+      const bookingSnap = await db.collection('bookings').where('companyId', '==', companyId).get();
+      await deleteDocsInChunks(db, bookingSnap.docs);
+
+      const scheduleSnap = await db.collection('companySchedules').where('companyId', '==', companyId).get();
+      await deleteDocsInChunks(db, scheduleSnap.docs);
+    }
+
+    const batch = db.batch();
+    batch.delete(db.collection('companies').doc(uname));
+    await batch.commit();
     return;
   }
 

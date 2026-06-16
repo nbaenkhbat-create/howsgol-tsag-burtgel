@@ -33,6 +33,10 @@ services:
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      - key: BOOKING_RETENTION_DAYS
+        value: "60"
+      - key: DEFAULT_COMPANY_AUTO_SEED
+        value: "false"
       - key: DEFAULT_COMPANY_NAME
         value: bayr
       - key: DEFAULT_COMPANY_PHONE

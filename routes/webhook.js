@@ -10,7 +10,6 @@ const GROQ_MODEL = 'llama-3.3-70b-specdec';
 const GROQ_MODEL_FALLBACK = 'llama-3.3-70b-versatile';
 const PUBLIC_HOME = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
 const PUBLIC_ERROR_REPLY = 'Уучлаарай, AI хариу өгч чадсангүй. https://howsgol-tsag-burtgel.onrender.com/';
-const PUBLIC_HOME_REPLY = 'https://howsgol-tsag-burtgel.onrender.com/';
 
 function getEnv(name) {
   return (process.env[name] || '').trim();
@@ -134,9 +133,8 @@ async function handleMessagingEvent(entry, event) {
       pageId: entry.id,
       senderId,
     });
-    await sendTextMessage(senderId, PUBLIC_HOME_REPLY).catch((err) =>
-      logError('Company missing fallback send', err)
-    );
+    // Company устсан эсвэл page_link таарахгүй үед AI тухайн page дээрээс салсан гэж үзээд
+    // хэрэглэгч рүү ямар ч мессеж илгээхгүй.
     return;
   }
 
