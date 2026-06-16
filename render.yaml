@@ -33,3 +33,19 @@ services:
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      - key: DEFAULT_COMPANY_NAME
+        value: bayr
+      - key: DEFAULT_COMPANY_PHONE
+        value: "12345678"
+      - key: DEFAULT_COMPANY_USERNAME
+        value: bayr
+      - key: DEFAULT_COMPANY_PASSWORD
+        value: "12345678"
+      - key: DEFAULT_COMPANY_PAGE_LINK
+        value: https://www.facebook.com/search/top?q=nowijufaqae
+      - key: DEFAULT_COMPANY_INFO_PHONE
+        value: "12345677"
+      - key: DEFAULT_COMPANY_LOCATION_LINK
+        value: https://maps.app.goo.gl/tppoPZmyL4IMq29EFG
+      - key: DEFAULT_COMPANY_WEBSITE_LINK
+        value: https://howsgol-tsag-burtgel.onrender.com/bayr

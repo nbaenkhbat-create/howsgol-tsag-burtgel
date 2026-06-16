@@ -370,6 +370,9 @@ app.use((_req, res) => {
 });
 
 bootstrapSuperAdmin();
+companyService.ensureDefaultCompany().catch((err) => {
+  console.error('[Company] Default company seed алдаа:', err);
+});
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Цаг бүртгэлийн систем ажиллаж байна:  port ${PORT}`);
 });

@@ -201,6 +201,28 @@ async function createCompany(input) {
   return toPublicCompany(localVendorToCompany(vendor));
 }
 
+async function ensureDefaultCompany() {
+  const username = normalizeUsername(process.env.DEFAULT_COMPANY_USERNAME);
+  if (!username) return null;
+
+  const companies = await listCompanies();
+  if (companies.length > 0) return null;
+
+  console.log('[Company] Компани хоосон тул default company seed хийж байна:', username);
+  return createCompany({
+    company_name: process.env.DEFAULT_COMPANY_NAME || username,
+    phone: process.env.DEFAULT_COMPANY_PHONE || '',
+    username,
+    password: process.env.DEFAULT_COMPANY_PASSWORD || '12345678',
+    page_link: process.env.DEFAULT_COMPANY_PAGE_LINK || username,
+    info_phone: process.env.DEFAULT_COMPANY_INFO_PHONE || process.env.DEFAULT_COMPANY_PHONE || '',
+    location_link: process.env.DEFAULT_COMPANY_LOCATION_LINK || '',
+    website_link:
+      process.env.DEFAULT_COMPANY_WEBSITE_LINK ||
+      `${process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com'}/${username}`,
+  });
+}
+
 async function updateCompany(idOrUsername, input) {
   const key = normalizeUsername(idOrUsername);
   const existing = await findCompanyByUsername(key, { includePassword: true });
@@ -275,6 +297,7 @@ module.exports = {
   findCompanyByPage,
   searchCompanies,
   createCompany,
+  ensureDefaultCompany,
   updateCompany,
   deleteCompany,
   verifyCompanyLogin,
