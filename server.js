@@ -1,8 +1,11 @@
+require('dotenv').config();
+
 const path = require('path');
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getData, save, nextId } = require('./db');
+const webhookRoutes = require('./routes/webhook');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -374,6 +377,11 @@ app.post('/api/public/:username/book', (req, res) => {
   save();
   res.status(201).json({ ok: true, booking: { date, hour: h } });
 });
+
+/* ============================================================================
+ * FACEBOOK MESSENGER WEBHOOK
+ * ========================================================================== */
+app.use('/api/webhook', webhookRoutes);
 
 /* ============================================================================
  * STATIC ASSETS + ХУУДАСНЫ ROUTING

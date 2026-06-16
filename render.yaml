@@ -15,3 +15,7 @@ services:
         value: admin123
       - key: SUPERADMIN_PASS
         value: "123123"
+      - key: PAGE_ACCESS_TOKEN
+        sync: false
+      - key: VERIFY_TOKEN
+        value: howsgol-ai_2026
