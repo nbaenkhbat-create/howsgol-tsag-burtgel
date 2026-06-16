@@ -122,7 +122,7 @@ async function findCompanyByPage(entry = {}) {
   if (!pageId) return null;
 
   const companies = await listCompanies();
-  return (
+  const matched =
     companies.find((company) => {
       const pageLink = String(company.page_link || '').trim();
       return (
@@ -131,8 +131,21 @@ async function findCompanyByPage(entry = {}) {
         pageLink.endsWith(`/${pageId}`) ||
         company.username === pageId
       );
-    }) || null
-  );
+    }) || null;
+
+  if (matched) return matched;
+
+  // Эхний MVP үед нэг л компани бүртгэлтэй бол Facebook page id/link таараагүй ч
+  // тухайн ганц компанийг ашиглаж chatbot-ыг ажиллуулна.
+  if (companies.length === 1) {
+    console.warn('[Company] Page ID таараагүй ч ганц компани байгаа тул fallback ашиглав:', {
+      pageId,
+      username: companies[0].username,
+    });
+    return companies[0];
+  }
+
+  return null;
 }
 
 async function searchCompanies(query) {
