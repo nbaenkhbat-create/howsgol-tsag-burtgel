@@ -28,9 +28,11 @@ Deploy дуусмагц:
 | Нүүр | `https://howsgol-tsag-burtgel.onrender.com/` |
 | Глобал Админ | `https://howsgol-tsag-burtgel.onrender.com/admin-secretify` |
 
-**Админ нэвтрэх:** Render Dashboard → Service → **Environment** хэсэгт:
-- `SUPERADMIN_USER` (default: `superadmin`)
-- `SUPERADMIN_PASS` (Render автоматаар үүсгэсэн random нууц үг — энд харагдана)
+**Админ нэвтрэх (Render):**
+- Нэвтрэх нэр: `admin123`
+- Нууц үг: `123123`
+
+> Localhost дээр default: `superadmin` / `admin123`. Өөрчлөх: `SUPERADMIN_USER`, `SUPERADMIN_PASS` env.
 
 > Free plan: 15 мин идэхээгүй бол унана (эхний ачаалал удаан). MongoDB шаардлагагүй.
 

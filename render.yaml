@@ -12,6 +12,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: SUPERADMIN_USER
-        value: superadmin
+        value: admin123
       - key: SUPERADMIN_PASS
-        generateValue: true
+        value: "123123"

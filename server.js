@@ -15,9 +15,15 @@ app.use(express.json());
  * -------------------------------------------------------------------------- */
 function bootstrapSuperAdmin() {
   const data = getData();
-  if (!data.superAdmin) {
-    const username = process.env.SUPERADMIN_USER || 'superadmin';
-    const password = process.env.SUPERADMIN_PASS || 'admin123';
+  const username = process.env.SUPERADMIN_USER || 'superadmin';
+  const password = process.env.SUPERADMIN_PASS || 'admin123';
+
+  const exists = !!data.superAdmin;
+  const usernameChanged = exists && data.superAdmin.username !== username;
+  const passwordChanged =
+    exists && !bcrypt.compareSync(password, data.superAdmin.passwordHash);
+
+  if (!exists || usernameChanged || passwordChanged) {
     data.superAdmin = {
       username,
       passwordHash: bcrypt.hashSync(password, 10),
