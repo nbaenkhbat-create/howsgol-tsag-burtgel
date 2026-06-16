@@ -137,7 +137,7 @@ app.post(
     res.status(201).json({
       vendor: company,
       loginUrl: `/${company.username}`,
-      bookingUrl: `/${company.username}/tsag`,
+      bookingUrl: '/',
     });
   })
 );
@@ -352,7 +352,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/:username/tsag', (req, res, next) => {
   if (RESERVED.has(req.params.username.toLowerCase())) return next();
-  page('booking.html')(req, res);
+  res.redirect(302, '/');
 });
 
 app.get('/:username', (req, res, next) => {

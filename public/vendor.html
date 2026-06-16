@@ -159,8 +159,8 @@
       document.getElementById('coName').textContent = vendor.companyName;
       document.getElementById('dashTitle').textContent = vendor.companyName + ' — Цаг хуваарь';
       const link = document.getElementById('bookingLink');
-      link.textContent = location.origin + '/' + vendor.username + '/tsag';
-      link.href = '/' + vendor.username + '/tsag';
+      link.textContent = location.origin + '/';
+      link.href = '/';
       setLoggedIn(true);
       const dp = document.getElementById('datePicker');
       dp.value = todayStr();

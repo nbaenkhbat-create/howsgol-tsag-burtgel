@@ -53,7 +53,7 @@
       }
       results.forEach((r) => {
         const item = el('div', { class: 'result-item', onclick: () => {
-          window.location.href = '/' + r.username + '/tsag';
+          window.location.href = '/' + r.username;
         }}, [
           el('div', {}, [
             el('div', { class: 'co', text: r.companyName }),
