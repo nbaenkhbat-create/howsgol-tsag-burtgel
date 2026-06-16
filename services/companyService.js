@@ -202,7 +202,7 @@ async function createCompany(input) {
 }
 
 async function ensureDefaultCompany() {
-  const username = normalizeUsername(process.env.DEFAULT_COMPANY_USERNAME);
+  const username = normalizeUsername(process.env.DEFAULT_COMPANY_USERNAME || 'bayr');
   if (!username) return null;
 
   const companies = await listCompanies();
@@ -210,13 +210,13 @@ async function ensureDefaultCompany() {
 
   console.log('[Company] Компани хоосон тул default company seed хийж байна:', username);
   return createCompany({
-    company_name: process.env.DEFAULT_COMPANY_NAME || username,
-    phone: process.env.DEFAULT_COMPANY_PHONE || '',
+    company_name: process.env.DEFAULT_COMPANY_NAME || 'bayr',
+    phone: process.env.DEFAULT_COMPANY_PHONE || '12345678',
     username,
     password: process.env.DEFAULT_COMPANY_PASSWORD || '12345678',
-    page_link: process.env.DEFAULT_COMPANY_PAGE_LINK || username,
-    info_phone: process.env.DEFAULT_COMPANY_INFO_PHONE || process.env.DEFAULT_COMPANY_PHONE || '',
-    location_link: process.env.DEFAULT_COMPANY_LOCATION_LINK || '',
+    page_link: process.env.DEFAULT_COMPANY_PAGE_LINK || 'https://www.facebook.com/search/top?q=nowijufaqae',
+    info_phone: process.env.DEFAULT_COMPANY_INFO_PHONE || process.env.DEFAULT_COMPANY_PHONE || '12345677',
+    location_link: process.env.DEFAULT_COMPANY_LOCATION_LINK || 'https://maps.app.goo.gl/tppoPZmyL4IMq29EFG',
     website_link:
       process.env.DEFAULT_COMPANY_WEBSITE_LINK ||
       `${process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com'}/${username}`,
