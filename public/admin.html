@@ -187,7 +187,8 @@
     async function loadVendors() {
       const wrap = document.getElementById('vendorList');
       try {
-        const { vendors } = await api('/api/admin/vendors', { token: TK.get() });
+        const data = await api('/api/admin/vendors', { token: TK.get() });
+        const vendors = Array.isArray(data.vendors) ? data.vendors : [];
         if (!vendors.length) {
           wrap.innerHTML = '<p class="empty">Одоогоор бүртгэлтэй компани алга.</p>';
           return;

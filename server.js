@@ -117,10 +117,13 @@ app.get(
   asyncRoute(async (_req, res) => {
     const companies = await companyService.listCompanies();
     const vendors = await Promise.all(
-      companies.map(async (company) => ({
-        ...company,
-        bookingCount: (await scheduleService.listBookings(company)).length,
-      }))
+      companies.map(async (company) => {
+        const bookings = await scheduleService.listBookings(company);
+        return {
+          ...company,
+          bookingCount: Array.isArray(bookings) ? bookings.length : 0,
+        };
+      })
     );
     res.json({ vendors });
   })

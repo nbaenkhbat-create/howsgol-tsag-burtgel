@@ -168,6 +168,8 @@ function buildDirectReply(userText, company, context) {
   const locationLink = company.location_link || '';
   const infoPhone = company.info_phone || company.phone || '';
   const username = company.username || '';
+  const todayAvailable = Array.isArray(context.todayAvailable) ? context.todayAvailable : [];
+  const tomorrowAvailable = Array.isArray(context.tomorrowAvailable) ? context.tomorrowAvailable : [];
 
   if (includesAny(text, ['байршил', 'bairshil', 'хаана', 'haana', 'хаяг', 'hayg', 'map'])) {
     return locationLink || PUBLIC_HOME + '/';
@@ -179,14 +181,14 @@ function buildDirectReply(userText, company, context) {
 
   if (includesAny(text, ['маргааш', 'margaash'])) {
     if (context.tomorrowClosed) return 'Маргааш ажиллахгүй өдөр өө';
-    return context.tomorrowAvailable.length
-      ? `Маргаашийн сул цагууд: ${context.tomorrowAvailable.join(', ')}`
+    return tomorrowAvailable.length
+      ? `Маргаашийн сул цагууд: ${tomorrowAvailable.join(', ')}`
       : 'Маргааш ажиллахгүй өдөр өө';
   }
 
   if (includesAny(text, ['өнөөдөр', 'өнөөдрийн', 'unuudur', 'onoogiin', 'цаг', 'tsag'])) {
-    return context.todayAvailable.length
-      ? `Өнөөдрийн сул цагууд: ${context.todayAvailable.join(', ')}`
+    return todayAvailable.length
+      ? `Өнөөдрийн сул цагууд: ${todayAvailable.join(', ')}`
       : 'Өнөөдөр сул цаг байхгүй ээ';
   }
 
@@ -198,6 +200,8 @@ function buildSystemPrompt(company, context) {
   const locationLink = company.location_link || '';
   const infoPhone = company.info_phone || company.phone || '';
   const username = company.username || '';
+  const todayAvailable = Array.isArray(context.todayAvailable) ? context.todayAvailable : [];
+  const tomorrowAvailable = Array.isArray(context.tomorrowAvailable) ? context.tomorrowAvailable : [];
 
   return `Чи бол ${companyName} салоны туслах АИ байна. Үйлчлүүлэгчдэд маш найрсаг, товч бөгөөд тодорхой монгол хэлээр хариулна уу. Дараах дүрмийг яг таг баримтал:
   - Дүрэм 1 (Цаг асуух): Хэрэглэгч өнөөдрийн цаг асуувал өнөөдрийн сул байгаа цагуудыг (жишээ нь: 13:00, 14:20 гэх мэт) хэлж өгнө. Хэрэв өнөөдөр ямар ч сул цаг байхгүй бол 'Өнөөдөр сул цаг байхгүй ээ' гэж хариулна.
@@ -207,9 +211,9 @@ function buildSystemPrompt(company, context) {
 
 Контекст:
 - Өнөөдөр: ${context.today}
-- Өнөөдрийн сул цагууд: ${context.todayAvailable.length ? context.todayAvailable.join(', ') : 'сул цаг байхгүй'}
+- Өнөөдрийн сул цагууд: ${todayAvailable.length ? todayAvailable.join(', ') : 'сул цаг байхгүй'}
 - Маргааш: ${context.tomorrow}
-- Маргаашийн сул цагууд: ${context.tomorrowAvailable.length ? context.tomorrowAvailable.join(', ') : 'сул цаг байхгүй'}
+- Маргаашийн сул цагууд: ${tomorrowAvailable.length ? tomorrowAvailable.join(', ') : 'сул цаг байхгүй'}
 - Маргааш хаалттай эсвэл хуваарьгүй эсэх: ${context.tomorrowClosed ? 'тийм' : 'үгүй'}`;
 }
 

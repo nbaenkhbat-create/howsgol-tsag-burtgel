@@ -91,9 +91,11 @@
       try {
         const data = await api('/api/public/' + encodeURIComponent(username) + '/next-days');
         wrap.innerHTML = '';
-        data.days.forEach((day, idx) => {
+        const days = Array.isArray(data.days) ? data.days : [];
+        days.forEach((day, idx) => {
           const label = idx === 0 ? 'Өнөөдөр' : 'Маргааш';
-          const available = day.slots.filter((s) => s.available).map((s) => HOUR_LABELS[s.hour]);
+          const slots = Array.isArray(day.slots) ? day.slots : [];
+          const available = slots.filter((s) => s.available).map((s) => HOUR_LABELS[s.hour]);
           wrap.appendChild(el('div', { class: 'row' }, [
             el('div', {}, [
               el('div', { class: 'main', text: label + ' · ' + day.date }),
@@ -114,11 +116,12 @@
       const date = document.getElementById('datePicker').value;
       if (!date) return;
       const data = await api('/api/public/' + encodeURIComponent(username) + '/day?date=' + date);
-      const anyAvailable = data.slots.some((s) => s.available);
+      const slots = Array.isArray(data.slots) ? data.slots : [];
+      const anyAvailable = slots.some((s) => s.available);
       const banner = document.getElementById('banner');
       if (!anyAvailable) showAlert(banner, 'Энэ өдөр сул цаг алга байна. Өөр өдөр сонгоно уу.', 'error');
       else hideAlert(banner);
-      renderSlots(data.slots);
+      renderSlots(slots);
     }
 
     function renderSlots(slots) {

@@ -38,8 +38,8 @@
       const text = q.value.trim();
       if (!text) { resultsEl.innerHTML = ''; return; }
       try {
-        const { results } = await api('/api/search?q=' + encodeURIComponent(text));
-        render(results);
+        const data = await api('/api/search?q=' + encodeURIComponent(text));
+        render(Array.isArray(data.results) ? data.results : []);
       } catch (e) {
         resultsEl.innerHTML = '<p class="empty">Алдаа гарлаа.</p>';
       }

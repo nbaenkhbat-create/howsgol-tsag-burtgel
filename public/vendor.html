@@ -267,8 +267,8 @@
     async function openDaysModal() {
       const curDate = document.getElementById('datePicker').value;
       document.getElementById('curDayLabel').textContent = curDate;
-      const { blockedDays } = await api('/api/vendor/blocked-days', { token: TK.get() });
-      blockedDaysState = blockedDays;
+      const data = await api('/api/vendor/blocked-days', { token: TK.get() });
+      blockedDaysState = Array.isArray(data.blockedDays) ? data.blockedDays : [];
       document.getElementById('blockCurrentDay').checked = blockedDays.includes(curDate);
       renderBlockedDaysList();
       daysModal.classList.add('show');
@@ -349,7 +349,8 @@
     /* ---------- Ирсэн захиалгууд ---------- */
     async function loadBookings() {
       const wrap = document.getElementById('bookingList');
-      const { bookings } = await api('/api/vendor/bookings', { token: TK.get() });
+      const data = await api('/api/vendor/bookings', { token: TK.get() });
+      const bookings = Array.isArray(data.bookings) ? data.bookings : [];
       window.__bookings = bookings;
       if (!bookings.length) {
         wrap.innerHTML = '<p class="empty">Одоогоор захиалга алга.</p>';
