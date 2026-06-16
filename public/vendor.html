@@ -44,7 +44,7 @@
           <label>Өдөр сонгох</label>
           <input type="date" id="datePicker" />
         </div>
-        <button class="btn ghost" id="blockedDaysBtn">Захиалга авахгүй өдрүүд</button>
+        <button class="btn ghost" id="blockedDaysBtn">Захиалга авахгүй өдөр</button>
       </div>
 
       <div class="alert" id="dayBlockedBanner"></div>
@@ -61,7 +61,7 @@
       <div class="slots-grid" id="rowPm"></div>
 
       <div class="mt" id="slotControls">
-        <button class="btn ghost" id="editSlotsBtn">Захиалга авахгүй цаг нэмэх</button>
+        <button class="btn ghost" id="editSlotsBtn">Захиалга авахгүй цаг</button>
       </div>
       <div class="mt hidden" id="editControls">
         <p class="muted" style="font-size:13px;">Чагтласан (✓) цаг = захиалга авахгүй. Чагтыг авч "Хадгалах" дарвал буцаад нээгдэнэ.</p>
@@ -82,7 +82,13 @@
   <div class="modal-backdrop" id="daysModal">
     <div class="modal">
       <h2>Захиалга авахгүй өдрүүд</h2>
-      <p class="subtitle">Чагтласан өдөр бүтнээрээ хаалттай. Чагтыг авч хадгалбал нээгдэнэ.</p>
+      <p class="subtitle">Энэ 7 хоногийн өдрүүдээс сонгох эсвэл тусгай огноо нэмж бүтэн өдрөөр хаана.</p>
+      <div class="slots-row-label">Энэ 7 хоног</div>
+      <div id="weekDaysList"></div>
+      <div class="field mt">
+        <label>Тусгай огноо нэмэх</label>
+        <input type="date" id="customBlockedDate" />
+      </div>
       <div class="field" style="background:var(--bg-soft);padding:12px;border-radius:10px;">
         <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
           <input type="checkbox" id="blockCurrentDay" /> Сонгосон өдрийг (<span id="curDayLabel"></span>) бүтнээр хаах
@@ -115,7 +121,7 @@
   <script>
     const { api, showAlert, hideAlert, token, el, todayStr, HOUR_LABELS } = App;
 
-    // URL-аас нэвтрэх нэрийг авна:  /bayr
+    // URL-аас нэвтрэх нэрийг авна: /bayr эсвэл /bayr/admin
     const username = decodeURIComponent(location.pathname.split('/').filter(Boolean)[0] || '');
     const TK = token('vendor_token_' + username);
 
@@ -269,9 +275,39 @@
       document.getElementById('curDayLabel').textContent = curDate;
       const data = await api('/api/vendor/blocked-days', { token: TK.get() });
       blockedDaysState = Array.isArray(data.blockedDays) ? data.blockedDays : [];
-      document.getElementById('blockCurrentDay').checked = blockedDays.includes(curDate);
+      document.getElementById('blockCurrentDay').checked = blockedDaysState.includes(curDate);
+      document.getElementById('customBlockedDate').value = '';
+      renderWeekDaysList();
       renderBlockedDaysList();
       daysModal.classList.add('show');
+    }
+
+    function addDays(date, days) {
+      const d = new Date(date + 'T00:00:00');
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function renderWeekDaysList() {
+      const wrap = document.getElementById('weekDaysList');
+      const selectedDate = document.getElementById('datePicker').value || todayStr();
+      const dayNames = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба'];
+      wrap.innerHTML = '';
+      const list = el('div', { class: 'list' });
+      for (let i = 0; i < 7; i++) {
+        const date = addDays(selectedDate, i);
+        const d = new Date(date + 'T00:00:00');
+        const cb = el('input', { type: 'checkbox', 'data-week-date': date });
+        cb.checked = blockedDaysState.includes(date);
+        list.appendChild(el('div', { class: 'row' }, [
+          el('label', { style: 'display:flex;align-items:center;gap:10px;font-weight:600;' }, [
+            cb,
+            document.createTextNode(dayNames[d.getDay()] + ' · ' + date),
+          ]),
+          el('span', { class: 'tag', text: cb.checked ? 'хаалттай' : 'нээлттэй' }),
+        ]));
+      }
+      wrap.appendChild(list);
     }
 
     function renderBlockedDaysList() {
@@ -299,9 +335,14 @@
 
       // Жагсаалт дахь чагтуудаас хүссэн төлөвийг тооцно
       const desired = new Set();
+      document.querySelectorAll('#weekDaysList input[type=checkbox]').forEach((cb) => {
+        if (cb.checked) desired.add(cb.getAttribute('data-week-date'));
+      });
       document.querySelectorAll('#blockedDaysList input[type=checkbox]').forEach((cb) => {
         if (cb.checked) desired.add(cb.getAttribute('data-date'));
       });
+      const customDate = document.getElementById('customBlockedDate').value;
+      if (customDate) desired.add(customDate);
       if (wantCurrent) desired.add(curDate); else desired.delete(curDate);
 
       const before = new Set(blockedDaysState);

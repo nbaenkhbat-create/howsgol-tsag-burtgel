@@ -202,7 +202,9 @@
               el('div', { class: 'main', text: companyName }),
               el('div', { class: 'sub', text: '/' + v.username + ' · ' + (v.phone || '—') + ' · ' + (v.bookingCount || 0) + ' захиалга' }),
               el('div', { class: 'sub' }, [
-                el('a', { href: '/' + v.username, target: '_blank', text: v.website_link || ('/' + v.username) }),
+                el('a', { href: '/', target: '_blank', text: 'Үйлчлүүлэгчийн нүүр' }),
+                document.createTextNode('   '),
+                el('a', { href: '/' + v.username + '/admin', target: '_blank', text: 'Компанийн админ' }),
                 document.createTextNode('   '),
                 el('a', { href: v.location_link || '#', target: '_blank', text: v.location_link ? 'Байршил' : '' }),
               ]),

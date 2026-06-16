@@ -276,8 +276,8 @@ async function tryCreateChatBooking(userText, company, senderId, context) {
     return available.length
       ? `Уучлаарай, ${label} цаг боломжгүй байна. Сул цагууд: ${available.join(', ')}`
       : date === context.tomorrow
-        ? 'Маргааш ажиллахгүй өдөр өө'
-        : 'Өнөөдөр сул цаг байхгүй ээ';
+        ? 'Маргааш захиалга авахгүй өдөр өө'
+        : 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
   }
 
   const info = parseNameAndPhone(userText);
@@ -335,19 +335,32 @@ function buildDirectReply(userText, company, context) {
   }
 
   if (includesAny(text, ['маргааш', 'margaash'])) {
-    if (context.tomorrowClosed) return 'Маргааш ажиллахгүй өдөр өө';
+    if (context.tomorrowClosed) return 'Маргааш захиалга авахгүй өдөр өө';
     return tomorrowAvailable.length
-      ? `Маргаашийн сул цагууд: ${tomorrowAvailable.join(', ')}`
-      : 'Маргааш ажиллахгүй өдөр өө';
+      ? buildAvailableTimesReply('Маргаашийн сул цагууд', tomorrowAvailable, company)
+      : 'Маргааш захиалга авахгүй өдөр өө';
   }
 
   if (includesAny(text, ['өнөөдөр', 'өнөөдрийн', 'unuudur', 'onoogiin', 'цаг', 'tsag'])) {
+    if (context.todayClosed) return 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
     return todayAvailable.length
-      ? `Өнөөдрийн сул цагууд: ${todayAvailable.join(', ')}`
-      : 'Өнөөдөр сул цаг байхгүй ээ';
+      ? buildAvailableTimesReply('Өнөөдрийн сул цагууд', todayAvailable, company)
+      : 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
   }
 
   return `${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.`;
+}
+
+function buildAvailableTimesReply(title, availableTimes, company) {
+  const username = company.username || '';
+  const locationLink = company.location_link || '';
+  const parts = [
+    `${title}: ${availableTimes.join(', ')}`,
+    'Хэрэв та захиалга өгөх бол нэр, утсаа ингэж бичнэ үү: Бат 99112233',
+  ];
+  if (locationLink) parts.push(locationLink);
+  parts.push(`Эсвэл ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаад сул цагаа хараад захиалга өгч болно.`);
+  return parts.join('\n');
 }
 
 function buildSystemPrompt(company, context) {

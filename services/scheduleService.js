@@ -112,7 +112,8 @@ async function getAvailableHourLabels(companyOrId, date) {
 async function getAiScheduleContext(company) {
   const today = todayStr(0);
   const tomorrow = todayStr(1);
-  const [todayHours, tomorrowDay, tomorrowHours] = await Promise.all([
+  const [todayDay, todayHours, tomorrowDay, tomorrowHours] = await Promise.all([
+    getDaySlots(company, today),
     getAvailableHourLabels(company, today),
     getDaySlots(company, tomorrow),
     getAvailableHourLabels(company, tomorrow),
@@ -123,6 +124,7 @@ async function getAiScheduleContext(company) {
     tomorrow,
     todayAvailable: todayHours,
     tomorrowAvailable: tomorrowHours,
+    todayClosed: todayDay.dayBlocked || todayHours.length === 0,
     tomorrowClosed: tomorrowDay.dayBlocked || tomorrowHours.length === 0,
   };
 }

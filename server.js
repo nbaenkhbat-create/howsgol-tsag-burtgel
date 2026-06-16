@@ -136,7 +136,7 @@ app.post(
     const company = await companyService.createCompany(cleanCompanyPayload(req.body));
     res.status(201).json({
       vendor: company,
-      loginUrl: `/${company.username}`,
+      loginUrl: `/${company.username}/admin`,
       bookingUrl: '/',
     });
   })
@@ -349,6 +349,11 @@ const page = (file) => (_req, res) => res.sendFile(path.join(__dirname, 'public'
 app.get('/', page('index.html'));
 app.get('/admin-secretify', page('admin.html'));
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+app.get('/:username/admin', (req, res, next) => {
+  if (RESERVED.has(req.params.username.toLowerCase())) return next();
+  page('vendor.html')(req, res);
+});
 
 app.get('/:username/tsag', (req, res, next) => {
   if (RESERVED.has(req.params.username.toLowerCase())) return next();
