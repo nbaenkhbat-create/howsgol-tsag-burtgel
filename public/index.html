@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Цаг захиалга — Хөвсгөл</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Цаг<span>Захиалга</span></div>
+    <div class="meta">Хөвсгөл аймаг</div>
+  </div>
+
+  <div class="container">
+    <div class="hero">
+      <h1>Хүссэн газраа цагаа захиалаарай</h1>
+      <p class="subtitle">Байгууллагын нэрээ бичээд хайгаад, сул цагаа сонгоно уу.</p>
+
+      <div class="search-box">
+        <input type="search" id="q" placeholder="Жишээ нь: bayr" autocomplete="off" />
+        <button class="btn" id="searchBtn">Хайх</button>
+      </div>
+
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+
+  <script src="/assets/common.js"></script>
+  <script>
+    const { api, el } = App;
+    const q = document.getElementById('q');
+    const resultsEl = document.getElementById('results');
+    const btn = document.getElementById('searchBtn');
+    let timer = null;
+
+    async function doSearch() {
+      const text = q.value.trim();
+      if (!text) { resultsEl.innerHTML = ''; return; }
+      try {
+        const { results } = await api('/api/search?q=' + encodeURIComponent(text));
+        render(results);
+      } catch (e) {
+        resultsEl.innerHTML = '<p class="empty">Алдаа гарлаа.</p>';
+      }
+    }
+
+    function render(results) {
+      resultsEl.innerHTML = '';
+      if (!results.length) {
+        resultsEl.appendChild(el('p', { class: 'empty', text: 'Илэрц олдсонгүй.' }));
+        return;
+      }
+      results.forEach((r) => {
+        const item = el('div', { class: 'result-item', onclick: () => {
+          window.location.href = '/' + r.username + '/tsag';
+        }}, [
+          el('div', {}, [
+            el('div', { class: 'co', text: r.companyName }),
+            el('div', { class: 'u', text: '/' + r.username }),
+          ]),
+          el('span', { class: 'btn small', text: 'Цаг захиалах →' }),
+        ]);
+        resultsEl.appendChild(item);
+      });
+    }
+
+    btn.addEventListener('click', doSearch);
+    q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(doSearch, 250); });
+    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+  </script>
+</body>
+</html>

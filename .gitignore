@@ -1,0 +1,6 @@
+node_modules/
+data/db.json
+.env
+*.log
+.DS_Store
+howsgol-tsag burtgel/

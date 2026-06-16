@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Глобал Админ</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Цаг<span>Захиалга</span> · Админ</div>
+    <div class="meta"><a href="#" id="logout" class="hidden">Гарах</a></div>
+  </div>
+
+  <!-- НЭВТРЭХ -->
+  <div class="container narrow" id="loginView">
+    <h1>Глобал Админ</h1>
+    <p class="subtitle">Шинэ байгууллага бүртгэхийн тулд нэвтэрнэ үү.</p>
+    <div class="card">
+      <div class="alert" id="loginAlert"></div>
+      <div class="field">
+        <label>Нэвтрэх нэр</label>
+        <input type="text" id="loginUser" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Нууц үг</label>
+        <input type="password" id="loginPass" autocomplete="current-password" />
+      </div>
+      <button class="btn full" id="loginBtn">Нэвтрэх</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="container hidden" id="dashView">
+    <h1>Байгууллага бүртгэх</h1>
+    <p class="subtitle">Шинэ үйлчилгээ үзүүлэгчийн мэдээллийг оруулаад "Хэрэглэгч нэмэх" дарна уу.</p>
+
+    <div class="card">
+      <h2>Шинэ хэрэглэгч нэмэх</h2>
+      <div class="alert" id="formAlert"></div>
+      <div class="field">
+        <label>Удирдах хүний нэр</label>
+        <input type="text" id="name" placeholder="Жишээ нь: Бат" />
+      </div>
+      <div class="field">
+        <label>Компани / Байгууллагын нэр</label>
+        <input type="text" id="companyName" placeholder="Жишээ нь: Баяр гоо сайхан" />
+      </div>
+      <div class="field">
+        <label>Нэвтрэх нэр (URL-д ашиглагдана)</label>
+        <input type="text" id="username" placeholder="bayr" />
+        <div class="muted" style="font-size:12px;margin-top:4px;">Зөвхөн a-z, 0-9, _, - · хаяг: /нэвтрэх_нэр</div>
+      </div>
+      <div class="field">
+        <label>Нууц үг</label>
+        <input type="text" id="password" placeholder="нууц үг" />
+      </div>
+      <div class="field">
+        <label>Утасны дугаар</label>
+        <input type="tel" id="phone" placeholder="99112233" />
+      </div>
+      <button class="btn" id="addBtn">+ Хэрэглэгч нэмэх</button>
+    </div>
+
+    <div class="card">
+      <h2>Бүртгэлтэй байгууллагууд</h2>
+      <div id="vendorList"></div>
+    </div>
+  </div>
+
+  <script src="/assets/common.js"></script>
+  <script>
+    const { api, showAlert, token, el } = App;
+    const TK = token('admin_token');
+
+    const loginView = document.getElementById('loginView');
+    const dashView = document.getElementById('dashView');
+    const logout = document.getElementById('logout');
+
+    function setLoggedIn(yes) {
+      loginView.classList.toggle('hidden', yes);
+      dashView.classList.toggle('hidden', !yes);
+      logout.classList.toggle('hidden', !yes);
+    }
+
+    // --- Нэвтрэх ---
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const alert = document.getElementById('loginAlert');
+      try {
+        const { token: t } = await api('/api/admin/login', {
+          method: 'POST',
+          body: {
+            username: document.getElementById('loginUser').value.trim(),
+            password: document.getElementById('loginPass').value,
+          },
+        });
+        TK.set(t);
+        setLoggedIn(true);
+        loadVendors();
+      } catch (e) {
+        showAlert(alert, e.message);
+      }
+    });
+
+    logout.addEventListener('click', (e) => {
+      e.preventDefault();
+      TK.clear();
+      setLoggedIn(false);
+    });
+
+    // --- Хэрэглэгч нэмэх ---
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      const alert = document.getElementById('formAlert');
+      const get = (id) => document.getElementById(id).value.trim();
+      try {
+        const r = await api('/api/admin/vendors', {
+          method: 'POST',
+          token: TK.get(),
+          body: {
+            name: get('name'),
+            companyName: get('companyName'),
+            username: get('username'),
+            password: document.getElementById('password').value,
+            phone: get('phone'),
+          },
+        });
+        showAlert(alert,
+          'Амжилттай нэмэгдлээ! Нэвтрэх хаяг: ' + r.loginUrl + '  ·  Захиалгын хаяг: ' + r.bookingUrl,
+          'success');
+        ['name','companyName','username','password','phone'].forEach((id) => document.getElementById(id).value = '');
+        loadVendors();
+      } catch (e) {
+        showAlert(alert, e.message);
+      }
+    });
+
+    // --- Жагсаалт ---
+    async function loadVendors() {
+      const wrap = document.getElementById('vendorList');
+      try {
+        const { vendors } = await api('/api/admin/vendors', { token: TK.get() });
+        if (!vendors.length) {
+          wrap.innerHTML = '<p class="empty">Одоогоор бүртгэлтэй байгууллага алга.</p>';
+          return;
+        }
+        wrap.innerHTML = '';
+        const list = el('div', { class: 'list' });
+        vendors.forEach((v) => {
+          list.appendChild(el('div', { class: 'row' }, [
+            el('div', {}, [
+              el('div', { class: 'main', text: v.companyName }),
+              el('div', { class: 'sub', text: v.name + ' · ' + (v.phone || '—') + ' · ' + v.bookingCount + ' захиалга' }),
+              el('div', { class: 'sub' }, [
+                el('a', { href: '/' + v.username, target: '_blank', text: '/' + v.username }),
+                document.createTextNode('   '),
+                el('a', { href: '/' + v.username + '/tsag', target: '_blank', text: '/' + v.username + '/tsag' }),
+              ]),
+            ]),
+            el('div', { class: 'row-actions' }, [
+              el('button', { class: 'btn ghost small danger', text: 'Устгах', onclick: () => removeVendor(v) }),
+            ]),
+          ]));
+        });
+        wrap.appendChild(list);
+      } catch (e) {
+        if (e.status === 401) { TK.clear(); setLoggedIn(false); }
+      }
+    }
+
+    async function removeVendor(v) {
+      if (!confirm('"' + v.companyName + '"-г устгах уу? Бүх захиалга устана.')) return;
+      await api('/api/admin/vendors/' + v.id, { method: 'DELETE', token: TK.get() });
+      loadVendors();
+    }
+
+    // --- Эхлэл ---
+    (async function init() {
+      if (TK.get()) {
+        try {
+          await api('/api/admin/me', { token: TK.get() });
+          setLoggedIn(true);
+          loadVendors();
+          return;
+        } catch (_) { TK.clear(); }
+      }
+      setLoggedIn(false);
+    })();
+  </script>
+</body>
+</html>

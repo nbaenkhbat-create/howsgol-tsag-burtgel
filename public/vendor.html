@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Байгууллагын админ</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Цаг<span>Захиалга</span></div>
+    <div class="meta">
+      <span id="coName"></span>
+      <a href="#" id="logout" class="hidden" style="margin-left:12px;">Гарах</a>
+    </div>
+  </div>
+
+  <!-- НЭВТРЭХ -->
+  <div class="container narrow" id="loginView">
+    <h1>Байгууллагын нэвтрэлт</h1>
+    <p class="subtitle">Хаяг: <code id="urlHint"></code></p>
+    <div class="card">
+      <div class="alert" id="loginAlert"></div>
+      <div class="field">
+        <label>Нэвтрэх нэр</label>
+        <input type="text" id="loginUser" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Нууц үг</label>
+        <input type="password" id="loginPass" autocomplete="current-password" />
+      </div>
+      <button class="btn full" id="loginBtn">Нэвтрэх</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="container hidden" id="dashView">
+    <h1 id="dashTitle">Цаг хуваарь</h1>
+    <p class="subtitle">Өдрөө сонгоод цагуудаа удирдана уу. Захиалгын хаяг: <a id="bookingLink" target="_blank"></a></p>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="field">
+          <label>Өдөр сонгох</label>
+          <input type="date" id="datePicker" />
+        </div>
+        <button class="btn ghost" id="blockedDaysBtn">Захиалга авахгүй өдрүүд</button>
+      </div>
+
+      <div class="alert" id="dayBlockedBanner"></div>
+
+      <div class="legend">
+        <span><span class="dot available"></span>Сул</span>
+        <span><span class="dot booked"></span>Захиалагдсан</span>
+        <span><span class="dot blocked"></span>Захиалга авахгүй</span>
+      </div>
+
+      <div class="slots-row-label">Өглөө / Өдөр (1–12)</div>
+      <div class="slots-grid" id="rowAm"></div>
+      <div class="slots-row-label">Орой / Шөнө (13–24)</div>
+      <div class="slots-grid" id="rowPm"></div>
+
+      <div class="mt" id="slotControls">
+        <button class="btn ghost" id="editSlotsBtn">Захиалга авахгүй цаг нэмэх</button>
+      </div>
+      <div class="mt hidden" id="editControls">
+        <p class="muted" style="font-size:13px;">Чагтласан (✓) цаг = захиалга авахгүй. Чагтыг авч "Хадгалах" дарвал буцаад нээгдэнэ.</p>
+        <div class="row-actions">
+          <button class="btn" id="saveSlotsBtn">Хадгалах</button>
+          <button class="btn ghost" id="cancelSlotsBtn">Болих</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Ирсэн захиалгууд</h2>
+      <div id="bookingList"></div>
+    </div>
+  </div>
+
+  <!-- BLOCKED DAYS MODAL -->
+  <div class="modal-backdrop" id="daysModal">
+    <div class="modal">
+      <h2>Захиалга авахгүй өдрүүд</h2>
+      <p class="subtitle">Чагтласан өдөр бүтнээрээ хаалттай. Чагтыг авч хадгалбал нээгдэнэ.</p>
+      <div class="field" style="background:var(--bg-soft);padding:12px;border-radius:10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="blockCurrentDay" /> Сонгосон өдрийг (<span id="curDayLabel"></span>) бүтнээр хаах
+        </label>
+      </div>
+      <div class="slots-row-label">Хаалттай өдрүүд</div>
+      <div id="blockedDaysList"></div>
+      <div class="row-actions mt">
+        <button class="btn" id="saveDaysBtn">Хадгалах</button>
+        <button class="btn ghost" id="closeDaysBtn">Болих</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOOKING INFO MODAL -->
+  <div class="modal-backdrop" id="infoModal">
+    <div class="modal">
+      <h2>Захиалгын мэдээлэл</h2>
+      <p class="subtitle" id="infoTime"></p>
+      <div class="field"><label>Үйлчлүүлэгч</label><div id="infoName" style="font-weight:600;"></div></div>
+      <div class="field"><label>Утас</label><div id="infoPhone" style="font-weight:600;"></div></div>
+      <div class="row-actions mt">
+        <button class="btn danger" id="cancelBookingBtn">Захиалга цуцлах</button>
+        <button class="btn ghost" id="closeInfoBtn">Хаах</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/common.js"></script>
+  <script>
+    const { api, showAlert, hideAlert, token, el, todayStr, HOUR_LABELS } = App;
+
+    // URL-аас нэвтрэх нэрийг авна:  /bayr
+    const username = decodeURIComponent(location.pathname.split('/').filter(Boolean)[0] || '');
+    const TK = token('vendor_token_' + username);
+
+    const loginView = document.getElementById('loginView');
+    const dashView = document.getElementById('dashView');
+    const logout = document.getElementById('logout');
+    document.getElementById('urlHint').textContent = location.origin + '/' + username;
+
+    let editMode = false;
+    let currentSlots = [];      // server-ийн өдрийн slot-ууд
+    let blockSelection = new Set(); // edit mode дэх блоклох цагууд
+    let currentBookingId = null;
+
+    function setLoggedIn(yes) {
+      loginView.classList.toggle('hidden', yes);
+      dashView.classList.toggle('hidden', !yes);
+      logout.classList.toggle('hidden', !yes);
+    }
+
+    /* ---------- Нэвтрэх ---------- */
+    document.getElementById('loginBtn').addEventListener('click', login);
+    document.getElementById('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+    async function login() {
+      const alert = document.getElementById('loginAlert');
+      try {
+        const r = await api('/api/vendor/login', {
+          method: 'POST',
+          body: {
+            username: document.getElementById('loginUser').value.trim() || username,
+            password: document.getElementById('loginPass').value,
+          },
+        });
+        TK.set(r.token);
+        afterLogin(r.vendor);
+      } catch (e) { showAlert(alert, e.message); }
+    }
+
+    logout.addEventListener('click', (e) => { e.preventDefault(); TK.clear(); setLoggedIn(false); });
+
+    function afterLogin(vendor) {
+      document.getElementById('coName').textContent = vendor.companyName;
+      document.getElementById('dashTitle').textContent = vendor.companyName + ' — Цаг хуваарь';
+      const link = document.getElementById('bookingLink');
+      link.textContent = location.origin + '/' + vendor.username + '/tsag';
+      link.href = '/' + vendor.username + '/tsag';
+      setLoggedIn(true);
+      const dp = document.getElementById('datePicker');
+      dp.value = todayStr();
+      loadDay();
+      loadBookings();
+    }
+
+    /* ---------- Өдрийн цагууд ---------- */
+    document.getElementById('datePicker').addEventListener('change', () => { exitEdit(); loadDay(); });
+
+    async function loadDay() {
+      const date = document.getElementById('datePicker').value;
+      if (!date) return;
+      const data = await api('/api/vendor/day?date=' + date, { token: TK.get() });
+      currentSlots = data.slots;
+      const banner = document.getElementById('dayBlockedBanner');
+      if (data.dayBlocked) {
+        showAlert(banner, 'Энэ өдөр бүтнээрээ хаалттай байна (захиалга авахгүй).', 'error');
+      } else {
+        hideAlert(banner);
+      }
+      renderSlots();
+    }
+
+    function renderSlots() {
+      const rowAm = document.getElementById('rowAm');
+      const rowPm = document.getElementById('rowPm');
+      rowAm.innerHTML = '';
+      rowPm.innerHTML = '';
+      currentSlots.forEach((s) => {
+        const target = s.hour <= 12 ? rowAm : rowPm;
+        target.appendChild(buildSlot(s));
+      });
+    }
+
+    function buildSlot(s) {
+      const cls = ['slot'];
+      const children = [
+        el('div', { class: 'h', text: String(s.hour) }),
+        el('div', { class: 'label', text: HOUR_LABELS[s.hour] }),
+      ];
+
+      if (editMode) {
+        // Edit mode: booked-оос бусдыг чагтлах боломжтой
+        if (s.status === 'booked') {
+          cls.push('booked', 'disabled');
+        } else {
+          const checked = blockSelection.has(s.hour);
+          if (checked) cls.push('selected');
+          children.unshift(el('div', { class: 'check', text: checked ? '✓' : '' }));
+        }
+        const node = el('div', { class: cls.join(' '), onclick: () => {
+          if (s.status === 'booked') return;
+          if (blockSelection.has(s.hour)) blockSelection.delete(s.hour);
+          else blockSelection.add(s.hour);
+          renderSlots();
+        }}, children);
+        return node;
+      }
+
+      // Normal view
+      cls.push(s.status);
+      const node = el('div', { class: cls.join(' '), onclick: () => {
+        if (s.status === 'booked' && s.booking) openInfo(s);
+      }}, children);
+      if (s.status === 'booked' && s.booking) {
+        node.appendChild(el('div', { class: 'label', text: s.booking.customerName }));
+      }
+      return node;
+    }
+
+    /* ---------- Захиалга авахгүй цаг (edit mode) ---------- */
+    document.getElementById('editSlotsBtn').addEventListener('click', () => {
+      editMode = true;
+      blockSelection = new Set(currentSlots.filter((s) => s.blocked).map((s) => s.hour));
+      document.getElementById('editControls').classList.remove('hidden');
+      document.getElementById('slotControls').classList.add('hidden');
+      renderSlots();
+    });
+    document.getElementById('cancelSlotsBtn').addEventListener('click', exitEdit);
+    function exitEdit() {
+      editMode = false;
+      document.getElementById('editControls').classList.add('hidden');
+      document.getElementById('slotControls').classList.remove('hidden');
+      renderSlots();
+    }
+    document.getElementById('saveSlotsBtn').addEventListener('click', async () => {
+      const date = document.getElementById('datePicker').value;
+      await api('/api/vendor/blocked-slots', {
+        method: 'POST', token: TK.get(),
+        body: { date, hours: [...blockSelection] },
+      });
+      exitEdit();
+      loadDay();
+    });
+
+    /* ---------- Захиалга авахгүй өдрүүд (modal) ---------- */
+    const daysModal = document.getElementById('daysModal');
+    let blockedDaysState = [];
+
+    document.getElementById('blockedDaysBtn').addEventListener('click', openDaysModal);
+    document.getElementById('closeDaysBtn').addEventListener('click', () => daysModal.classList.remove('show'));
+
+    async function openDaysModal() {
+      const curDate = document.getElementById('datePicker').value;
+      document.getElementById('curDayLabel').textContent = curDate;
+      const { blockedDays } = await api('/api/vendor/blocked-days', { token: TK.get() });
+      blockedDaysState = blockedDays;
+      document.getElementById('blockCurrentDay').checked = blockedDays.includes(curDate);
+      renderBlockedDaysList();
+      daysModal.classList.add('show');
+    }
+
+    function renderBlockedDaysList() {
+      const wrap = document.getElementById('blockedDaysList');
+      wrap.innerHTML = '';
+      if (!blockedDaysState.length) {
+        wrap.appendChild(el('p', { class: 'empty', text: 'Хаалттай өдөр алга.' }));
+        return;
+      }
+      const list = el('div', { class: 'list' });
+      blockedDaysState.forEach((d) => {
+        const cb = el('input', { type: 'checkbox', 'data-date': d });
+        cb.checked = true;
+        list.appendChild(el('div', { class: 'row' }, [
+          el('label', { style: 'display:flex;align-items:center;gap:10px;font-weight:600;' }, [cb, document.createTextNode(d)]),
+          el('span', { class: 'tag', text: 'хаалттай' }),
+        ]));
+      });
+      wrap.appendChild(list);
+    }
+
+    document.getElementById('saveDaysBtn').addEventListener('click', async () => {
+      const curDate = document.getElementById('datePicker').value;
+      const wantCurrent = document.getElementById('blockCurrentDay').checked;
+
+      // Жагсаалт дахь чагтуудаас хүссэн төлөвийг тооцно
+      const desired = new Set();
+      document.querySelectorAll('#blockedDaysList input[type=checkbox]').forEach((cb) => {
+        if (cb.checked) desired.add(cb.getAttribute('data-date'));
+      });
+      if (wantCurrent) desired.add(curDate); else desired.delete(curDate);
+
+      const before = new Set(blockedDaysState);
+      const all = new Set([...before, ...desired, curDate]);
+      const tasks = [];
+      all.forEach((date) => {
+        const shouldBlock = desired.has(date);
+        const wasBlocked = before.has(date);
+        if (shouldBlock !== wasBlocked) {
+          tasks.push(api('/api/vendor/blocked-day', {
+            method: 'POST', token: TK.get(), body: { date, blocked: shouldBlock },
+          }));
+        }
+      });
+      await Promise.all(tasks);
+      daysModal.classList.remove('show');
+      loadDay();
+    });
+
+    /* ---------- Захиалгын мэдээлэл ---------- */
+    const infoModal = document.getElementById('infoModal');
+    document.getElementById('closeInfoBtn').addEventListener('click', () => infoModal.classList.remove('show'));
+
+    function openInfo(s) {
+      const date = document.getElementById('datePicker').value;
+      currentBookingId = null;
+      // booking id-г жагсаалтаас олж авна
+      const b = (window.__bookings || []).find((x) => x.date === date && x.hour === s.hour);
+      currentBookingId = b ? b.id : null;
+      document.getElementById('infoTime').textContent = date + ' · ' + HOUR_LABELS[s.hour];
+      document.getElementById('infoName').textContent = s.booking.customerName;
+      document.getElementById('infoPhone').textContent = s.booking.customerPhone;
+      infoModal.classList.add('show');
+    }
+
+    document.getElementById('cancelBookingBtn').addEventListener('click', async () => {
+      if (!currentBookingId) return;
+      if (!confirm('Энэ захиалгыг цуцлах уу?')) return;
+      await api('/api/vendor/bookings/' + currentBookingId, { method: 'DELETE', token: TK.get() });
+      infoModal.classList.remove('show');
+      loadDay();
+      loadBookings();
+    });
+
+    /* ---------- Ирсэн захиалгууд ---------- */
+    async function loadBookings() {
+      const wrap = document.getElementById('bookingList');
+      const { bookings } = await api('/api/vendor/bookings', { token: TK.get() });
+      window.__bookings = bookings;
+      if (!bookings.length) {
+        wrap.innerHTML = '<p class="empty">Одоогоор захиалга алга.</p>';
+        return;
+      }
+      wrap.innerHTML = '';
+      const list = el('div', { class: 'list' });
+      bookings.forEach((b) => {
+        list.appendChild(el('div', { class: 'row' }, [
+          el('div', {}, [
+            el('div', { class: 'main', text: b.customerName + ' · ' + b.customerPhone }),
+            el('div', { class: 'sub', text: b.date + ' · ' + HOUR_LABELS[b.hour] }),
+          ]),
+          el('button', { class: 'btn ghost small', text: 'Цуцлах', onclick: async () => {
+            if (!confirm('Захиалга цуцлах уу?')) return;
+            await api('/api/vendor/bookings/' + b.id, { method: 'DELETE', token: TK.get() });
+            loadDay(); loadBookings();
+          }}),
+        ]));
+      });
+      wrap.appendChild(list);
+    }
+
+    /* ---------- Эхлэл ---------- */
+    (async function init() {
+      document.getElementById('loginUser').value = username;
+      if (TK.get()) {
+        try {
+          const me = await api('/api/vendor/me', { token: TK.get() });
+          afterLogin(me);
+          return;
+        } catch (_) { TK.clear(); }
+      }
+      setLoggedIn(false);
+    })();
+  </script>
+</body>
+</html>
