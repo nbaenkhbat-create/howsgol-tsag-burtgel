@@ -14,9 +14,11 @@
 
   <div class="container" id="main">
     <h1 id="coName">Уншиж байна…</h1>
-    <p class="subtitle">Өдрөө сонгоод сул цаг дээр дарж захиална уу.</p>
+    <p class="subtitle">Өнөөдөр болон маргаашийн сул цагийг харж, сул цаг дээр дарж захиална уу.</p>
 
     <div class="card" id="card">
+      <div id="nextDays" class="list" style="margin-bottom:16px;"></div>
+
       <div class="toolbar">
         <div class="field">
           <label>Өдөр сонгох</label>
@@ -80,7 +82,32 @@
       dp.value = todayStr();
       dp.min = todayStr();
       dp.addEventListener('change', loadDay);
+      loadNextDays();
       loadDay();
+    }
+
+    async function loadNextDays() {
+      const wrap = document.getElementById('nextDays');
+      try {
+        const data = await api('/api/public/' + encodeURIComponent(username) + '/next-days');
+        wrap.innerHTML = '';
+        data.days.forEach((day, idx) => {
+          const label = idx === 0 ? 'Өнөөдөр' : 'Маргааш';
+          const available = day.slots.filter((s) => s.available).map((s) => HOUR_LABELS[s.hour]);
+          wrap.appendChild(el('div', { class: 'row' }, [
+            el('div', {}, [
+              el('div', { class: 'main', text: label + ' · ' + day.date }),
+              el('div', { class: 'sub', text: available.length ? available.join(', ') : 'Сул цаг байхгүй' }),
+            ]),
+            el('button', { class: 'btn ghost small', text: 'Сонгох', onclick: () => {
+              document.getElementById('datePicker').value = day.date;
+              loadDay();
+            }}),
+          ]));
+        });
+      } catch (_) {
+        wrap.innerHTML = '';
+      }
     }
 
     async function loadDay() {

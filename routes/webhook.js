@@ -1,15 +1,16 @@
 const express = require('express');
 const axios = require('axios');
 const Groq = require('groq-sdk');
+const companyService = require('../services/companyService');
+const scheduleService = require('../services/scheduleService');
 
 const router = express.Router();
 
 const GROQ_MODEL = 'llama-3.3-70b-specdec';
 const GROQ_MODEL_FALLBACK = 'llama-3.3-70b-versatile';
-const SYSTEM_PROMPT =
-  'Чи бол Говь-Алтай аймагт байрлах Хөвсгөл цаг бүртгэлийн салоны туслах АИ байна. Үйлчлүүлэгчдэд маш найрсаг, товч бөгөөд тодорхой монгол хэлээр хариулна уу.';
+const PUBLIC_HOME = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
+const PUBLIC_ERROR_REPLY = 'Уучлаарай, AI хариу өгч чадсангүй. https://howsgol-tsag-burtgel.onrender.com/';
 
-/** process.env-ийг runtime дээр уншина (module load биш) */
 function getEnv(name) {
   return (process.env[name] || '').trim();
 }
@@ -20,7 +21,6 @@ function maskSecret(value) {
   return value.slice(0, 4) + '...' + value.slice(-4) + ` (${value.length} тэмдэгт)`;
 }
 
-/** Env тохиргоог startup/log-д шалгах */
 function logEnvStatus() {
   console.log('[Messenger] Env шалгалт:');
   console.log('  VERIFY_TOKEN     =', maskSecret(getEnv('VERIFY_TOKEN')));
@@ -53,9 +53,6 @@ function getGroq() {
   return groqClient;
 }
 
-/**
- * GET /api/webhook — Facebook webhook баталгаажуулалт
- */
 router.get('/', (req, res) => {
   try {
     const mode = req.query['hub.mode'];
@@ -80,23 +77,16 @@ router.get('/', (req, res) => {
   }
 });
 
-/**
- * POST /api/webhook — хэрэглэгчийн мессеж хүлээн авна
- */
 router.post('/', (req, res) => {
   try {
     const body = req.body;
-
     if (body.object === 'page') {
       for (const entry of body.entry || []) {
         for (const event of entry.messaging || []) {
-          handleMessagingEvent(event).catch((err) => {
-            logError('Event боловсруулах', err);
-          });
+          handleMessagingEvent(entry, event).catch((err) => logError('Event боловсруулах', err));
         }
       }
     }
-
     res.status(200).send('EVENT_RECEIVED');
   } catch (err) {
     logError('POST /api/webhook', err);
@@ -104,79 +94,88 @@ router.post('/', (req, res) => {
   }
 });
 
-async function handleMessagingEvent(event) {
+async function handleMessagingEvent(entry, event) {
   const senderId = event.sender?.id;
-  if (!senderId) return;
-  if (event.message?.is_echo) return;
+  if (!senderId || event.message?.is_echo) return;
 
-  if (event.message) {
-    const text = (event.message.text || '').trim();
-    if (!text) {
-      await sendTextMessage(senderId, 'Зөвхөн текст мессеж илгээнэ үү.');
-      return;
-    }
-
-    console.log(`[Messenger] ${senderId}: ${text}`);
-
-    let reply;
-    try {
-      reply = await askGroq(text);
-    } catch (err) {
-      logError('Groq API', err);
-      await sendTextMessage(
-        senderId,
-        'Уучлаарай, AI хариу өгч чадсангүй. (Groq API алдаа — Logs шалгана уу.)'
-      ).catch((e) => logError('Fallback send (Groq алдаа)', e));
-      return;
-    }
-
-    try {
-      await sendTextMessage(senderId, reply);
-    } catch (err) {
-      logError('Facebook Send API', err);
-      // Groq хариу ирсэн ч Facebook руу илгээж чадаагүй
-    }
+  const text = (event.message?.text || event.postback?.payload || '').trim();
+  if (!text) {
+    await sendTextMessage(senderId, 'Зөвхөн текст мессеж илгээнэ үү.').catch((err) =>
+      logError('Non-text reply send', err)
+    );
     return;
   }
 
-  if (event.postback) {
-    const payload = event.postback.payload || '';
-    console.log(`[Messenger] ${senderId} postback: ${payload}`);
-    try {
-      const reply = await askGroq(payload);
-      await sendTextMessage(senderId, reply);
-    } catch (err) {
-      logError('Postback', err);
-    }
+  const company = await companyService.findCompanyByPage(entry);
+  if (!company) {
+    console.warn('[Messenger] Page-д харгалзах компани олдсонгүй:', {
+      pageId: entry.id,
+      senderId,
+    });
+    await sendTextMessage(senderId, PUBLIC_ERROR_REPLY).catch((err) =>
+      logError('Company missing fallback send', err)
+    );
+    return;
+  }
+
+  console.log(`[Messenger] page=${entry.id} company=${company.username} sender=${senderId}: ${text}`);
+
+  try {
+    const scheduleContext = await scheduleService.getAiScheduleContext(company);
+    const reply = await askGroq(text, company, scheduleContext);
+    await sendTextMessage(senderId, reply);
+  } catch (err) {
+    logError('Groq/Facebook AI flow', err);
+    await sendTextMessage(senderId, PUBLIC_ERROR_REPLY).catch((e) =>
+      logError('AI fallback send', e)
+    );
   }
 }
 
-async function askGroq(userText) {
+function buildSystemPrompt(company, context) {
+  const companyName = company.company_name || company.companyName || company.username;
+  const locationLink = company.location_link || '';
+  const infoPhone = company.info_phone || company.phone || '';
+  const username = company.username || '';
+
+  return `Чи бол ${companyName} салоны туслах АИ байна. Үйлчлүүлэгчдэд маш найрсаг, товч бөгөөд тодорхой монгол хэлээр хариулна уу. Дараах дүрмийг яг таг баримтал:
+  - Дүрэм 1 (Цаг асуух): Хэрэглэгч өнөөдрийн цаг асуувал өнөөдрийн сул байгаа цагуудыг (жишээ нь: 13:00, 14:20 гэх мэт) хэлж өгнө. Хэрэв өнөөдөр ямар ч сул цаг байхгүй бол 'Өнөөдөр сул цаг байхгүй ээ' гэж хариулна.
+  - Дүрэм 2 (Маргаашийн цаг асуух): Хэрэглэгч маргаашийн цаг асуухад хэрэв маргааш нь амардаг өдөр (эсвэл хуваарьгүй) бол шууд 'Маргааш ажиллахгүй өдөр өө' гэж хариулна.
+  - Дүрэм 3 (Байршил асуух): Хэрэглэгч байршил хаана вэ гэж асуувал ямар ч илүү дутуу үг, тайлбар хэлэлгүйгээр ШУУД зөвхөн энэ Google Map линкийг өгнө: ${locationLink}
+  - Дүрэм 4 (Лавлах утас асуух): Хэрэглэгч лавлах утас асуувал ШУУД яг ингэж хариулна: '${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.'
+
+Контекст:
+- Өнөөдөр: ${context.today}
+- Өнөөдрийн сул цагууд: ${context.todayAvailable.length ? context.todayAvailable.join(', ') : 'сул цаг байхгүй'}
+- Маргааш: ${context.tomorrow}
+- Маргаашийн сул цагууд: ${context.tomorrowAvailable.length ? context.tomorrowAvailable.join(', ') : 'сул цаг байхгүй'}
+- Маргааш хаалттай эсвэл хуваарьгүй эсэх: ${context.tomorrowClosed ? 'тийм' : 'үгүй'}`;
+}
+
+async function askGroq(userText, company, scheduleContext) {
   const apiKey = getEnv('GROQ_API_KEY');
-  if (!apiKey) {
-    throw new Error('GROQ_API_KEY тохируулаагүй — Render Environment эсвэл .env файл шалгана уу');
-  }
+  if (!apiKey) throw new Error('GROQ_API_KEY тохируулаагүй');
 
   const groq = getGroq();
+  const systemPrompt = buildSystemPrompt(company, scheduleContext);
   const models = [GROQ_MODEL, GROQ_MODEL_FALLBACK];
   let lastErr = null;
 
   for (const model of models) {
     try {
-      console.log(`[Groq] model=${model}, key=${maskSecret(apiKey)}`);
+      console.log(`[Groq] model=${model}, key=${maskSecret(apiKey)}, company=${company.username}`);
       const completion = await groq.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userText },
         ],
-        temperature: 0.7,
+        temperature: 0.4,
         max_tokens: 512,
       });
 
       const reply = completion.choices?.[0]?.message?.content?.trim();
       if (!reply) throw new Error('Groq хоосон хариу буцаалаа');
-      console.log(`[Groq] Амжилт (${model}):`, reply.slice(0, 80));
       return reply;
     } catch (err) {
       lastErr = err;
@@ -187,32 +186,23 @@ async function askGroq(userText) {
   throw lastErr || new Error('Groq бүх model амжилтгүй');
 }
 
-/** Facebook Send API — хариу илгээх */
 async function sendTextMessage(recipientId, text) {
   const pageToken = getEnv('PAGE_ACCESS_TOKEN');
-  if (!pageToken) {
-    throw new Error('PAGE_ACCESS_TOKEN тохируулаагүй — Render Environment шалгана уу');
-  }
+  if (!pageToken) throw new Error('PAGE_ACCESS_TOKEN тохируулаагүй');
 
-  const url = 'https://graph.facebook.com/v21.0/me/messages';
-  try {
-    const res = await axios.post(
-      url,
-      {
-        recipient: { id: recipientId },
-        message: { text: String(text).slice(0, 2000) },
-      },
-      {
-        params: { access_token: pageToken },
-        timeout: 15000,
-      }
-    );
-    console.log(`[Messenger] → ${recipientId}: ${String(text).slice(0, 80)}...`);
-    return res.data;
-  } catch (err) {
-    logError('Facebook Send API POST', err);
-    throw err;
-  }
+  const res = await axios.post(
+    'https://graph.facebook.com/v21.0/me/messages',
+    {
+      recipient: { id: recipientId },
+      message: { text: String(text).slice(0, 2000) },
+    },
+    {
+      params: { access_token: pageToken },
+      timeout: 15000,
+    }
+  );
+  console.log(`[Messenger] → ${recipientId}: ${String(text).slice(0, 80)}...`);
+  return res.data;
 }
 
 module.exports = router;

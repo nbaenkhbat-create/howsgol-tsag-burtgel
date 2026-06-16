@@ -8,14 +8,13 @@
 </head>
 <body>
   <div class="topbar">
-    <div class="brand">Цаг<span>Захиалга</span> · Админ</div>
+    <div class="brand">Цаг<span>Захиалга</span> · SaaS Админ</div>
     <div class="meta"><a href="#" id="logout" class="hidden">Гарах</a></div>
   </div>
 
-  <!-- НЭВТРЭХ -->
   <div class="container narrow" id="loginView">
     <h1>Глобал Админ</h1>
-    <p class="subtitle">Шинэ байгууллага бүртгэхийн тулд нэвтэрнэ үү.</p>
+    <p class="subtitle">Компани бүртгэх, засахын тулд нэвтэрнэ үү.</p>
     <div class="card">
       <div class="alert" id="loginAlert"></div>
       <div class="field">
@@ -30,40 +29,57 @@
     </div>
   </div>
 
-  <!-- DASHBOARD -->
   <div class="container hidden" id="dashView">
-    <h1>Байгууллага бүртгэх</h1>
-    <p class="subtitle">Шинэ үйлчилгээ үзүүлэгчийн мэдээллийг оруулаад "Хэрэглэгч нэмэх" дарна уу.</p>
+    <h1>Компани бүртгэл</h1>
+    <p class="subtitle">Firestore `companies` collection-д хадгалагдах 8 мэдээллийг удирдана.</p>
 
     <div class="card">
-      <h2>Шинэ хэрэглэгч нэмэх</h2>
+      <h2 id="formTitle">Шинэ компани нэмэх</h2>
       <div class="alert" id="formAlert"></div>
+      <input type="hidden" id="editingUsername" />
+
       <div class="field">
-        <label>Удирдах хүний нэр</label>
-        <input type="text" id="name" placeholder="Жишээ нь: Бат" />
+        <label>1. Компанийн нэр</label>
+        <input type="text" id="company_name" placeholder="Жишээ нь: Bayr Salon" />
       </div>
       <div class="field">
-        <label>Компани / Байгууллагын нэр</label>
-        <input type="text" id="companyName" placeholder="Жишээ нь: Баяр гоо сайхан" />
-      </div>
-      <div class="field">
-        <label>Нэвтрэх нэр (URL-д ашиглагдана)</label>
-        <input type="text" id="username" placeholder="bayr" />
-        <div class="muted" style="font-size:12px;margin-top:4px;">Зөвхөн a-z, 0-9, _, - · хаяг: /нэвтрэх_нэр</div>
-      </div>
-      <div class="field">
-        <label>Нууц үг</label>
-        <input type="text" id="password" placeholder="нууц үг" />
-      </div>
-      <div class="field">
-        <label>Утасны дугаар</label>
+        <label>2. Утасны дугаар</label>
         <input type="tel" id="phone" placeholder="99112233" />
       </div>
-      <button class="btn" id="addBtn">+ Хэрэглэгч нэмэх</button>
+      <div class="field">
+        <label>3. Нэвтрэх нэр (URL)</label>
+        <input type="text" id="username" placeholder="bayr" />
+        <div class="muted" style="font-size:12px;margin-top:4px;">Зөвхөн a-z, 0-9, _, - · хаяг: /bayr</div>
+      </div>
+      <div class="field">
+        <label>4. Нууц үг</label>
+        <input type="text" id="password" placeholder="Шинээр нэмэхэд заавал, засахад хоосон орхивол хуучнаараа" />
+      </div>
+      <div class="field">
+        <label>5. Фэйсбүүк пэйж линк / Page ID</label>
+        <input type="text" id="page_link" placeholder="https://facebook.com/your-page эсвэл page id" />
+      </div>
+      <div class="field">
+        <label>6. Лавлах утас</label>
+        <input type="tel" id="info_phone" placeholder="77112233" />
+      </div>
+      <div class="field">
+        <label>7. Байршлын Google Map линк</label>
+        <input type="text" id="location_link" placeholder="https://maps.app.goo.gl/..." />
+      </div>
+      <div class="field">
+        <label>8. Вэбсайт линк (автоматаар үүснэ)</label>
+        <input type="text" id="website_link" placeholder="https://howsgol-tsag-burtgel.onrender.com/bayr" />
+      </div>
+
+      <div class="row-actions">
+        <button class="btn" id="saveBtn">+ Компани нэмэх</button>
+        <button class="btn ghost hidden" id="cancelEditBtn">Болих</button>
+      </div>
     </div>
 
     <div class="card">
-      <h2>Бүртгэлтэй байгууллагууд</h2>
+      <h2>Бүртгэлтэй компаниуд</h2>
       <div id="vendorList"></div>
     </div>
   </div>
@@ -72,6 +88,7 @@
   <script>
     const { api, showAlert, token, el } = App;
     const TK = token('admin_token');
+    const fields = ['company_name','phone','username','password','page_link','info_phone','location_link','website_link'];
 
     const loginView = document.getElementById('loginView');
     const dashView = document.getElementById('dashView');
@@ -83,7 +100,41 @@
       logout.classList.toggle('hidden', !yes);
     }
 
-    // --- Нэвтрэх ---
+    function getForm() {
+      const payload = {};
+      fields.forEach((id) => payload[id] = document.getElementById(id).value.trim());
+      if (!payload.website_link && payload.username) {
+        payload.website_link = location.origin + '/' + payload.username.toLowerCase();
+      }
+      return payload;
+    }
+
+    function clearForm() {
+      fields.forEach((id) => document.getElementById(id).value = '');
+      document.getElementById('editingUsername').value = '';
+      document.getElementById('username').disabled = false;
+      document.getElementById('formTitle').textContent = 'Шинэ компани нэмэх';
+      document.getElementById('saveBtn').textContent = '+ Компани нэмэх';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+    }
+
+    function fillForm(v) {
+      document.getElementById('editingUsername').value = v.username;
+      document.getElementById('company_name').value = v.company_name || v.companyName || '';
+      document.getElementById('phone').value = v.phone || '';
+      document.getElementById('username').value = v.username || '';
+      document.getElementById('username').disabled = true;
+      document.getElementById('password').value = '';
+      document.getElementById('page_link').value = v.page_link || '';
+      document.getElementById('info_phone').value = v.info_phone || '';
+      document.getElementById('location_link').value = v.location_link || '';
+      document.getElementById('website_link').value = v.website_link || (location.origin + '/' + v.username);
+      document.getElementById('formTitle').textContent = 'Компани засах';
+      document.getElementById('saveBtn').textContent = 'Хадгалах';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const alert = document.getElementById('loginAlert');
       try {
@@ -108,55 +159,55 @@
       setLoggedIn(false);
     });
 
-    // --- Хэрэглэгч нэмэх ---
-    document.getElementById('addBtn').addEventListener('click', async () => {
+    document.getElementById('cancelEditBtn').addEventListener('click', clearForm);
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
       const alert = document.getElementById('formAlert');
-      const get = (id) => document.getElementById(id).value.trim();
+      const editing = document.getElementById('editingUsername').value;
+      const payload = getForm();
       try {
-        const r = await api('/api/admin/vendors', {
-          method: 'POST',
+        const r = await api(editing ? '/api/admin/vendors/' + editing : '/api/admin/vendors', {
+          method: editing ? 'PUT' : 'POST',
           token: TK.get(),
-          body: {
-            name: get('name'),
-            companyName: get('companyName'),
-            username: get('username'),
-            password: document.getElementById('password').value,
-            phone: get('phone'),
-          },
+          body: payload,
         });
         showAlert(alert,
-          'Амжилттай нэмэгдлээ! Нэвтрэх хаяг: ' + r.loginUrl + '  ·  Захиалгын хаяг: ' + r.bookingUrl,
-          'success');
-        ['name','companyName','username','password','phone'].forEach((id) => document.getElementById(id).value = '');
+          editing
+            ? 'Амжилттай хадгаллаа.'
+            : 'Амжилттай нэмэгдлээ! Вэб хаяг: ' + (r.vendor.website_link || r.loginUrl),
+          'success'
+        );
+        clearForm();
         loadVendors();
       } catch (e) {
         showAlert(alert, e.message);
       }
     });
 
-    // --- Жагсаалт ---
     async function loadVendors() {
       const wrap = document.getElementById('vendorList');
       try {
         const { vendors } = await api('/api/admin/vendors', { token: TK.get() });
         if (!vendors.length) {
-          wrap.innerHTML = '<p class="empty">Одоогоор бүртгэлтэй байгууллага алга.</p>';
+          wrap.innerHTML = '<p class="empty">Одоогоор бүртгэлтэй компани алга.</p>';
           return;
         }
         wrap.innerHTML = '';
         const list = el('div', { class: 'list' });
         vendors.forEach((v) => {
+          const companyName = v.company_name || v.companyName || '';
           list.appendChild(el('div', { class: 'row' }, [
             el('div', {}, [
-              el('div', { class: 'main', text: v.companyName }),
-              el('div', { class: 'sub', text: v.name + ' · ' + (v.phone || '—') + ' · ' + v.bookingCount + ' захиалга' }),
+              el('div', { class: 'main', text: companyName }),
+              el('div', { class: 'sub', text: '/' + v.username + ' · ' + (v.phone || '—') + ' · ' + (v.bookingCount || 0) + ' захиалга' }),
               el('div', { class: 'sub' }, [
-                el('a', { href: '/' + v.username, target: '_blank', text: '/' + v.username }),
+                el('a', { href: '/' + v.username, target: '_blank', text: v.website_link || ('/' + v.username) }),
                 document.createTextNode('   '),
-                el('a', { href: '/' + v.username + '/tsag', target: '_blank', text: '/' + v.username + '/tsag' }),
+                el('a', { href: v.location_link || '#', target: '_blank', text: v.location_link ? 'Байршил' : '' }),
               ]),
             ]),
             el('div', { class: 'row-actions' }, [
+              el('button', { class: 'btn ghost small', text: 'Засварлах', onclick: () => fillForm(v) }),
               el('button', { class: 'btn ghost small danger', text: 'Устгах', onclick: () => removeVendor(v) }),
             ]),
           ]));
@@ -168,12 +219,11 @@
     }
 
     async function removeVendor(v) {
-      if (!confirm('"' + v.companyName + '"-г устгах уу? Бүх захиалга устана.')) return;
-      await api('/api/admin/vendors/' + v.id, { method: 'DELETE', token: TK.get() });
+      if (!confirm('"' + (v.company_name || v.companyName) + '"-г устгах уу?')) return;
+      await api('/api/admin/vendors/' + v.username, { method: 'DELETE', token: TK.get() });
       loadVendors();
     }
 
-    // --- Эхлэл ---
     (async function init() {
       if (TK.get()) {
         try {

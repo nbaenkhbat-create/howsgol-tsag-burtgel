@@ -21,3 +21,11 @@ services:
         value: howsgol-ai_2026
       - key: GROQ_API_KEY
         sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://howsgol-tsag-burtgel.onrender.com
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_DATABASE_URL
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
