@@ -142,6 +142,12 @@ async function handleMessagingEvent(entry, event) {
 
   try {
     const scheduleContext = await scheduleService.getAiScheduleContext(company);
+    const directReply = buildDirectReply(text, company, scheduleContext);
+    if (directReply) {
+      await sendTextMessage(senderId, directReply);
+      return;
+    }
+
     const reply = await askGroq(text, company, scheduleContext);
     await sendTextMessage(senderId, reply);
   } catch (err) {
@@ -150,6 +156,41 @@ async function handleMessagingEvent(entry, event) {
       logError('AI fallback send', e)
     );
   }
+}
+
+function includesAny(text, words) {
+  const lower = String(text || '').toLowerCase();
+  return words.some((word) => lower.includes(word));
+}
+
+function buildDirectReply(userText, company, context) {
+  const text = String(userText || '').toLowerCase();
+  const locationLink = company.location_link || '';
+  const infoPhone = company.info_phone || company.phone || '';
+  const username = company.username || '';
+
+  if (includesAny(text, ['байршил', 'bairshil', 'хаана', 'haana', 'хаяг', 'hayg', 'map'])) {
+    return locationLink || PUBLIC_HOME + '/';
+  }
+
+  if (includesAny(text, ['лавлах', 'lawlah', 'утас', 'utas', 'дугаар', 'dugaar'])) {
+    return `${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.`;
+  }
+
+  if (includesAny(text, ['маргааш', 'margaash'])) {
+    if (context.tomorrowClosed) return 'Маргааш ажиллахгүй өдөр өө';
+    return context.tomorrowAvailable.length
+      ? `Маргаашийн сул цагууд: ${context.tomorrowAvailable.join(', ')}`
+      : 'Маргааш ажиллахгүй өдөр өө';
+  }
+
+  if (includesAny(text, ['өнөөдөр', 'өнөөдрийн', 'unuudur', 'onoogiin', 'цаг', 'tsag'])) {
+    return context.todayAvailable.length
+      ? `Өнөөдрийн сул цагууд: ${context.todayAvailable.join(', ')}`
+      : 'Өнөөдөр сул цаг байхгүй ээ';
+  }
+
+  return null;
 }
 
 function buildSystemPrompt(company, context) {
