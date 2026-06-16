@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getData, save, nextId } = require('./db');
 const webhookRoutes = require('./routes/webhook');
+webhookRoutes.logEnvStatus();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
