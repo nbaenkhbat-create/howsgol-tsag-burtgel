@@ -55,22 +55,42 @@ function getGroq() {
 
 router.get('/', (req, res) => {
   try {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
+    const mode = String(req.query['hub.mode'] || '');
+    const token = String(req.query['hub.verify_token'] || '');
     const challenge = req.query['hub.challenge'];
     const verifyToken = getEnv('VERIFY_TOKEN');
 
-    if (mode === 'subscribe' && token === verifyToken && verifyToken) {
-      console.log('[Messenger] Webhook баталгаажлаа.');
-      return res.status(200).send(challenge);
+    console.log('[Messenger] Webhook verify хүсэлт:', {
+      mode,
+      tokenMatch: token === verifyToken,
+      hasChallenge: challenge != null && challenge !== '',
+      expectedToken: maskSecret(verifyToken),
+      gotToken: maskSecret(token),
+    });
+
+    if (mode !== 'subscribe') {
+      console.warn('[Messenger] hub.mode буруу:', mode);
+      return res.sendStatus(403);
     }
 
-    console.warn('[Messenger] Verify token таарахгүй.', {
-      mode,
-      gotToken: maskSecret(token),
-      expectedToken: maskSecret(verifyToken),
-    });
-    return res.sendStatus(403);
+    if (!verifyToken) {
+      console.error('[Messenger] VERIFY_TOKEN env хоосон байна!');
+      return res.sendStatus(500);
+    }
+
+    if (token !== verifyToken) {
+      console.warn('[Messenger] Verify token таарахгүй.');
+      return res.sendStatus(403);
+    }
+
+    if (challenge == null || challenge === '') {
+      console.warn('[Messenger] hub.challenge хоосон байна.');
+      return res.sendStatus(400);
+    }
+
+    // Facebook зөвхөн challenge string-ийг plain text хэлбэрээр хүлээдэг (JSON биш!)
+    console.log('[Messenger] Webhook баталгаажлаа.');
+    res.status(200).type('text/plain').send(String(challenge));
   } catch (err) {
     logError('GET /api/webhook', err);
     return res.sendStatus(500);

@@ -17,7 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'tsag-burtgel-dev-secret-change-me';
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
-const RESERVED = new Set(['admin-secretify', 'api', 'assets', 'favicon.ico', 'robots.txt', 'health']);
+const RESERVED = new Set(['admin-secretify', 'api', 'assets', 'favicon.ico', 'robots.txt', 'health', 'webhook']);
 
 app.use(express.json({ limit: '2mb' }));
 
@@ -330,8 +330,11 @@ app.post(
 
 /* ============================================================================
  * FACEBOOK MESSENGER WEBHOOK
+ * Meta callback URL: https://howsgol-tsag-burtgel.onrender.com/api/webhook
+ * (эсвэл /webhook — хоёул ажиллана)
  * ========================================================================== */
 app.use('/api/webhook', webhookRoutes);
+app.use('/webhook', webhookRoutes);
 
 /* ============================================================================
  * STATIC ASSETS + ХУУДАСНЫ ROUTING
