@@ -8,6 +8,35 @@ function normalizeUsername(username) {
   return String(username || '').trim().toLowerCase();
 }
 
+function extractFacebookPageKeys(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+
+  const keys = new Set([raw.toLowerCase()]);
+  const numericMatches = raw.match(/\d{8,}/g) || [];
+  numericMatches.forEach((id) => keys.add(id));
+
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    const idParam = url.searchParams.get('id');
+    if (idParam) keys.add(idParam);
+
+    const pathParts = url.pathname
+      .split('/')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => part.toLowerCase());
+
+    pathParts.forEach((part) => {
+      if (!['profile.php', 'pages', 'people'].includes(part)) keys.add(part);
+    });
+  } catch (_) {
+    // Plain page id/name байж болно.
+  }
+
+  return [...keys].filter(Boolean);
+}
+
 function normalizeCompanyInput(input = {}, existing = null) {
   const username = normalizeUsername(input.username ?? existing?.username);
   const companyName = String(input.company_name ?? input.companyName ?? existing?.company_name ?? '').trim();
@@ -121,16 +150,17 @@ async function findCompanyByPage(entry = {}) {
   const pageId = String(entry.id || entry.page_id || '').trim();
   if (!pageId) return null;
 
+  const pageKeys = extractFacebookPageKeys(pageId);
   const companies = await listCompanies();
   return (
     companies.find((company) => {
       const pageLink = String(company.page_link || '').trim();
-      return (
-        pageLink === pageId ||
-        pageLink.includes(pageId) ||
-        pageLink.endsWith(`/${pageId}`) ||
-        company.username === pageId
-      );
+      const companyKeys = new Set([
+        ...extractFacebookPageKeys(pageLink),
+        company.username,
+      ].map((key) => String(key).toLowerCase()));
+
+      return pageKeys.some((key) => companyKeys.has(String(key).toLowerCase()));
     }) || null
   );
 }
@@ -304,6 +334,7 @@ async function verifyCompanyLogin(username, password) {
 
 module.exports = {
   normalizeUsername,
+  extractFacebookPageKeys,
   toPublicCompany,
   listCompanies,
   findCompanyByUsername,
