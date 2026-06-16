@@ -379,6 +379,7 @@ const page = (file) => (req, res) =>
 
 app.get('/', page('index.html'));
 app.get('/admin-secretify', page('admin.html'));
+app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.get('/:username/tsag', (req, res, next) => {
   if (RESERVED.has(req.params.username.toLowerCase())) return next();
