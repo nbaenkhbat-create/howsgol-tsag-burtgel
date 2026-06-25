@@ -47,9 +47,20 @@ function normalizeCompanyInput(input = {}, existing = null) {
   const companyName = String(input.company_name ?? input.companyName ?? existing?.company_name ?? '').trim();
   const pageLink = String(input.page_link ?? existing?.page_link ?? '').trim();
   const pageId = String(
-    input.page_id ??
+    input.facebookPageId ??
+      input.page_id ??
+      input.pageId ??
+      existing?.facebookPageId ??
       existing?.page_id ??
+      existing?.pageId ??
       extractPrimaryFacebookPageId(pageLink)
+  ).trim();
+  const pageToken = String(
+    input.pageToken ??
+      input.page_token ??
+      existing?.pageToken ??
+      existing?.page_token ??
+      ''
   ).trim();
   const passwordInput = input.password != null ? String(input.password) : '';
   const passwordHash =
@@ -65,6 +76,9 @@ function normalizeCompanyInput(input = {}, existing = null) {
     password: passwordHash,
     page_link: pageLink,
     page_id: pageId,
+    facebookPageId: pageId,
+    pageToken,
+    page_token: pageToken,
     info_phone: String(input.info_phone ?? existing?.info_phone ?? '').trim(),
     location_link: String(input.location_link ?? existing?.location_link ?? '').trim(),
     website_link: String(
@@ -87,22 +101,30 @@ function validateCompany(company, { requirePassword = true } = {}) {
   }
 }
 
-function toPublicCompany(doc) {
+function toPublicCompany(doc, { includeSecrets = false } = {}) {
   if (!doc) return null;
-  return {
+  const company = {
     id: doc.id,
     company_name: doc.company_name || doc.companyName || '',
     companyName: doc.company_name || doc.companyName || '',
     phone: doc.phone || '',
     username: doc.username || '',
     page_link: doc.page_link || '',
-    page_id: doc.page_id || extractPrimaryFacebookPageId(doc.page_link || ''),
+    page_id: doc.page_id || doc.facebookPageId || doc.pageId || extractPrimaryFacebookPageId(doc.page_link || ''),
+    facebookPageId: doc.facebookPageId || doc.page_id || doc.pageId || extractPrimaryFacebookPageId(doc.page_link || ''),
     info_phone: doc.info_phone || '',
     location_link: doc.location_link || '',
     website_link: doc.website_link || '',
     createdAt: doc.createdAt || null,
     updatedAt: doc.updatedAt || null,
   };
+
+  if (includeSecrets) {
+    company.pageToken = doc.pageToken || doc.page_token || '';
+    company.page_token = doc.pageToken || doc.page_token || '';
+  }
+
+  return company;
 }
 
 function localVendorToCompany(v) {
@@ -113,7 +135,10 @@ function localVendorToCompany(v) {
     username: v.username,
     password: v.passwordHash || v.password || '',
     page_link: v.page_link || '',
-    page_id: v.page_id || extractPrimaryFacebookPageId(v.page_link || ''),
+    page_id: v.page_id || v.facebookPageId || extractPrimaryFacebookPageId(v.page_link || ''),
+    facebookPageId: v.facebookPageId || v.page_id || extractPrimaryFacebookPageId(v.page_link || ''),
+    pageToken: v.pageToken || v.page_token || '',
+    page_token: v.pageToken || v.page_token || '',
     info_phone: v.info_phone || v.phone || '',
     location_link: v.location_link || '',
     website_link:
@@ -128,15 +153,15 @@ async function useFirestore() {
   return isFirebaseConfigured();
 }
 
-async function listCompanies() {
+async function listCompanies({ includeSecrets = false } = {}) {
   if (await useFirestore()) {
     const snap = await getFirestore().collection('companies').get();
     return snap.docs
-      .map((doc) => toPublicCompany({ id: doc.id, ...doc.data() }))
+      .map((doc) => toPublicCompany({ id: doc.id, ...doc.data() }, { includeSecrets }))
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
-  return getData().vendors.map((v) => toPublicCompany(localVendorToCompany(v)));
+  return getData().vendors.map((v) => toPublicCompany(localVendorToCompany(v), { includeSecrets }));
 }
 
 async function findCompanyByUsername(username, { includePassword = false } = {}) {
@@ -164,15 +189,28 @@ async function findCompanyByPage(entry = {}) {
   const pageId = String(entry.id || entry.page_id || '').trim();
   if (!pageId) return null;
 
+  if (await useFirestore()) {
+    const db = getFirestore();
+    const fields = ['facebookPageId', 'page_id', 'pageId'];
+    for (const field of fields) {
+      const snap = await db.collection('companies').where(field, '==', pageId).limit(1).get();
+      if (!snap.empty) {
+        const data = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        return toPublicCompany(data, { includeSecrets: true });
+      }
+    }
+  }
+
   const pageKeys = new Set([
     ...extractFacebookPageKeys(pageId),
     ...extractFacebookPageKeys(entry.page_link),
   ].map((key) => String(key).toLowerCase()));
-  const companies = await listCompanies();
+  const companies = await listCompanies({ includeSecrets: true });
   return (
     companies.find((company) => {
       const pageLink = String(company.page_link || '').trim();
       const companyKeys = new Set([
+        company.facebookPageId,
         company.page_id,
         ...extractFacebookPageKeys(pageLink),
         company.username,
@@ -226,6 +264,9 @@ async function createCompany(input) {
     phone: company.phone,
     page_link: company.page_link,
     page_id: company.page_id,
+    facebookPageId: company.facebookPageId,
+    pageToken: company.pageToken,
+    page_token: company.page_token,
     info_phone: company.info_phone,
     location_link: company.location_link,
     website_link: company.website_link,
@@ -306,6 +347,9 @@ async function updateCompany(idOrUsername, input) {
     phone: merged.phone,
     page_link: merged.page_link,
     page_id: merged.page_id,
+    facebookPageId: merged.facebookPageId,
+    pageToken: merged.pageToken,
+    page_token: merged.page_token,
     info_phone: merged.info_phone,
     location_link: merged.location_link,
     website_link: merged.website_link,

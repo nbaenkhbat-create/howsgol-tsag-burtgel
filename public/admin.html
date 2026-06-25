@@ -65,6 +65,11 @@
         <input type="text" id="page_id" placeholder="100095482988969" />
       </div>
       <div class="field">
+        <label>5.2. Facebook Page Access Token</label>
+        <input type="text" id="pageToken" placeholder="EAAB..." />
+        <div class="muted" style="font-size:12px;margin-top:4px;">Энэ token байвал AI тухайн page-ийн token-оор хариу бичнэ. Хоосон бол default PAGE_ACCESS_TOKEN ашиглана.</div>
+      </div>
+      <div class="field">
         <label>6. Лавлах утас</label>
         <input type="tel" id="info_phone" placeholder="77112233" />
       </div>
@@ -93,7 +98,7 @@
   <script>
     const { api, showAlert, token, el } = App;
     const TK = token('admin_token');
-    const fields = ['company_name','phone','username','password','page_link','page_id','info_phone','location_link','website_link'];
+    const fields = ['company_name','phone','username','password','page_link','page_id','pageToken','info_phone','location_link','website_link'];
 
     const loginView = document.getElementById('loginView');
     const dashView = document.getElementById('dashView');
@@ -136,6 +141,7 @@
       document.getElementById('password').value = '';
       document.getElementById('page_link').value = v.page_link || '';
       document.getElementById('page_id').value = v.page_id || '';
+      document.getElementById('pageToken').value = v.pageToken || v.page_token || '';
       document.getElementById('info_phone').value = v.info_phone || '';
       document.getElementById('location_link').value = v.location_link || '';
       document.getElementById('website_link').value = v.website_link || (location.origin + '/' + v.username);

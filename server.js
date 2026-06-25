@@ -83,7 +83,10 @@ function cleanCompanyPayload(body = {}, existingUsername = '') {
     username,
     password: body.password,
     page_link: body.page_link,
+    facebookPageId: body.facebookPageId,
     page_id: body.page_id,
+    pageToken: body.pageToken,
+    page_token: body.page_token,
     info_phone: body.info_phone,
     location_link: body.location_link,
     website_link:
@@ -116,7 +119,7 @@ app.get(
   '/api/admin/vendors',
   auth('admin'),
   asyncRoute(async (_req, res) => {
-    const companies = await companyService.listCompanies();
+    const companies = await companyService.listCompanies({ includeSecrets: true });
     const vendors = await Promise.all(
       companies.map(async (company) => {
         const bookings = await scheduleService.listBookings(company);

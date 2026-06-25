@@ -141,30 +141,31 @@ async function handleMessagingEvent(entry, event) {
   console.log(`[Messenger] page=${entry.id} company=${company.username} sender=${senderId}: ${text}`);
 
   try {
+    const pageToken = company.pageToken || company.page_token || '';
     const scheduleContext = await scheduleService.getAiScheduleContext(company);
     const pendingReply = await continuePendingBooking(text, company, senderId);
     if (pendingReply) {
-      await sendTextMessage(senderId, pendingReply);
+      await sendTextMessage(senderId, pendingReply, pageToken);
       return;
     }
 
     const bookingReply = await tryCreateChatBooking(text, company, senderId, scheduleContext);
     if (bookingReply) {
-      await sendTextMessage(senderId, bookingReply);
+      await sendTextMessage(senderId, bookingReply, pageToken);
       return;
     }
 
     const directReply = buildDirectReply(text, company, scheduleContext);
     if (directReply) {
-      await sendTextMessage(senderId, directReply);
+      await sendTextMessage(senderId, directReply, pageToken);
       return;
     }
 
     const reply = await askGroq(text, company, scheduleContext);
-    await sendTextMessage(senderId, reply);
+    await sendTextMessage(senderId, reply, pageToken);
   } catch (err) {
     logError('Groq/Facebook AI flow', err);
-    await sendTextMessage(senderId, PUBLIC_ERROR_REPLY).catch((e) =>
+    await sendTextMessage(senderId, PUBLIC_ERROR_REPLY, company.pageToken || company.page_token || '').catch((e) =>
       logError('AI fallback send', e)
     );
   }
@@ -417,8 +418,8 @@ async function askGroq(userText, company, scheduleContext) {
   throw lastErr || new Error('Groq бүх model амжилтгүй');
 }
 
-async function sendTextMessage(recipientId, text) {
-  const pageToken = getEnv('PAGE_ACCESS_TOKEN');
+async function sendTextMessage(recipientId, text, pageTokenOverride = '') {
+  const pageToken = String(pageTokenOverride || '').trim() || getEnv('PAGE_ACCESS_TOKEN');
   if (!pageToken) throw new Error('PAGE_ACCESS_TOKEN тохируулаагүй');
 
   const res = await axios.post(
