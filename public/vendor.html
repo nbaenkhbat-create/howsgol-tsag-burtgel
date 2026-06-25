@@ -64,7 +64,7 @@
         <button class="btn ghost" id="editSlotsBtn">Захиалга авахгүй цаг</button>
       </div>
       <div class="mt hidden" id="editControls">
-        <p class="muted" style="font-size:13px;">Чагтласан (✓) цаг = захиалга авахгүй. Одоогийн цаг блоклогдсон үед Facebook чатанд AI хариулахгүй (та өөрөө хариулна).</p>
+        <p class="muted" style="font-size:13px;">Чагтласан (✓) цаг = захиалга авахгүй. Чагтыг авч "Хадгалах" дарвал буцаад нээгдэнэ.</p>
         <div class="row-actions">
           <button class="btn" id="saveSlotsBtn">Хадгалах</button>
           <button class="btn ghost" id="cancelSlotsBtn">Болих</button>
@@ -82,7 +82,7 @@
   <div class="modal-backdrop" id="daysModal">
     <div class="modal">
       <h2>Захиалга авахгүй өдрүүд</h2>
-      <p class="subtitle">Энэ 7 хоногийн өдрүүдээс сонгох эсвэл тусгай огноо нэмж бүтэн өдрөөр хаана. Facebook чатанд AI автоматаар «өнөөдөр захиалга авахгүй өдөр» гэж хариулна.</p>
+      <p class="subtitle">Энэ 7 хоногийн өдрүүдээс сонгох эсвэл тусгай огноо нэмж бүтэн өдрөөр хаана.</p>
       <div class="slots-row-label">Энэ 7 хоног</div>
       <div id="weekDaysList"></div>
       <div class="field mt">
@@ -184,7 +184,7 @@
       currentSlots = data.slots;
       const banner = document.getElementById('dayBlockedBanner');
       if (data.dayBlocked) {
-        showAlert(banner, 'Энэ өдөр бүтнээрээ хаалттай. Facebook чатанд AI «өнөөдөр захиалга авахгүй өдөр» гэж хариулна.', 'error');
+        showAlert(banner, 'Энэ өдөр бүтнээрээ хаалттай байна (захиалга авахгүй).', 'error');
       } else {
         hideAlert(banner);
       }

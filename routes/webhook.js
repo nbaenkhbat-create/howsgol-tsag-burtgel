@@ -185,25 +185,14 @@ async function handleIncomingMessage(entry, event) {
       return;
     }
 
-    const scheduleGate = await scheduleService.getScheduleChatGate(company);
-    if (scheduleGate.mode === 'silent') {
-      console.log('[Messenger] Vendor блоклосон цаг — AI алгасав:', {
+    const schedulePause = await scheduleService.isAiChatPaused(company);
+    if (schedulePause.paused) {
+      console.log('[Messenger] Vendor хуваарь pause — AI алгасав:', {
         company: company.username,
         senderId,
-        reason: scheduleGate.reason,
-        hour: scheduleGate.hour,
+        reason: schedulePause.reason,
+        hour: schedulePause.hour,
       });
-      pendingBookings.delete(pendingKey(company, senderId));
-      return;
-    }
-    if (scheduleGate.mode === 'blocked_day_message') {
-      console.log('[Messenger] Vendor блоклосон өдөр — тод мессеж:', {
-        company: company.username,
-        senderId,
-        reason: scheduleGate.reason,
-      });
-      pendingBookings.delete(pendingKey(company, senderId));
-      await sendTextMessage(senderId, scheduleGate.message, pageToken);
       return;
     }
 
@@ -412,7 +401,7 @@ function buildDirectReply(userText, company, context) {
       : 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
   }
 
-  return null;
+  return `${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.`;
 }
 
 function buildAvailableTimesReply(title, availableTimes, company) {

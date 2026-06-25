@@ -139,55 +139,24 @@ function getCurrentSlotHour() {
   const hour = Number(
     new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date())
   );
-  // 1–24 цагийн grid: 00:00–00:59 → 24, 01:00–23:59 → 1–23
   return hour === 0 ? 24 : hour;
 }
 
-/**
- * Vendor panel-ийн блоклосон өдөр/цаг дээр Facebook AI-ийн үйлдлийг тодорхойлно.
- * - blocked_day: өнөөдөр бүтэн хаалттай → тод мессеж илгээнэ
- * - blocked_hour: одоогийн цаг блоклогдсон → AI чимээгүй (ажилтан хариулна)
- * - open: хэвийн AI
- */
-async function getScheduleChatGate(company) {
+async function isAiChatPaused(company) {
   const id = companyKey(company);
   const today = todayStr(0);
   const dayBlocked = await isDayBlocked(id, today);
-
   if (dayBlocked) {
-    return {
-      mode: 'blocked_day_message',
-      message: 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.',
-      reason: 'blocked_day',
-    };
+    return { paused: true, reason: 'blocked_day' };
   }
 
   const blockedHours = await getBlockedHours(id, today);
-  if (blockedHours.length >= HOURS.length) {
-    return {
-      mode: 'blocked_day_message',
-      message: 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.',
-      reason: 'all_hours_blocked',
-    };
-  }
-
   const currentHour = getCurrentSlotHour();
   if (blockedHours.includes(currentHour)) {
-    return { mode: 'silent', reason: 'blocked_hour', hour: currentHour };
+    return { paused: true, reason: 'blocked_hour', hour: currentHour };
   }
 
-  return { mode: 'open' };
-}
-
-async function isAiChatPaused(company) {
-  const gate = await getScheduleChatGate(company);
-  return {
-    paused: gate.mode !== 'open',
-    mode: gate.mode,
-    message: gate.message || '',
-    reason: gate.reason,
-    hour: gate.hour,
-  };
+  return { paused: false };
 }
 
 async function setBlockedHours(companyOrId, date, hours) {
@@ -388,7 +357,6 @@ module.exports = {
   getDaySlots,
   getAvailableHourLabels,
   getAiScheduleContext,
-  getScheduleChatGate,
   isAiChatPaused,
   setBlockedHours,
   listBlockedDays,
