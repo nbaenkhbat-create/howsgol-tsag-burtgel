@@ -198,13 +198,7 @@ async function handleIncomingMessage(entry, event) {
     }
 
     const scheduleContext = await scheduleService.getAiScheduleContext(company);
-    const pendingReply = await continuePendingBooking(text, company, senderId);
-    if (pendingReply) {
-      await sendTextMessage(senderId, pendingReply, pageToken);
-      return;
-    }
-
-    const bookingReply = await tryCreateChatBooking(text, company, senderId, scheduleContext);
+    const bookingReply = await processBookingFlow(text, company, senderId, scheduleContext);
     if (bookingReply) {
       await sendTextMessage(senderId, bookingReply, pageToken);
       return;
@@ -243,63 +237,181 @@ function extractRequestedHour(text) {
   return hour >= 1 && hour <= 24 ? hour : null;
 }
 
-function parseNameAndPhone(text) {
+function parsePhone(text) {
+  const match = String(text || '').match(/(?:\+?976[-\s]?)?(\d{8})/);
+  return match ? match[1] : '';
+}
+
+function parseNameOnly(text) {
   const raw = String(text || '').trim();
-  const phoneMatch = raw.match(/(?:\+?976[-\s]?)?(\d{8})/);
-  if (!phoneMatch) return null;
-  const phone = phoneMatch[1];
+  if (!raw || parsePhone(raw)) return '';
+
   let name = raw
-    .replace(phoneMatch[0], ' ')
+    .replace(/(?:\+?976[-\s]?)?\d{8}/g, ' ')
+    .replace(/(?:^|\D)([01]?\d|2[0-4])(?::[0-5]\d)?\s*(?:цаг|tsag|h)?/gi, ' ')
     .replace(/нэр\s*[:=-]?/gi, ' ')
     .replace(/ner\s*[:=-]?/gi, ' ')
     .replace(/утас\s*[:=-]?/gi, ' ')
     .replace(/utas\s*[:=-]?/gi, ' ')
-    .replace(/(?:^|\D)([01]?\d|2[0-4])(?::[0-5]\d)?\s*(?:цаг|tsag|h)?/gi, ' ')
+    .replace(/цаг\s*[:=-]?/gi, ' ')
+    .replace(/tsag\s*[:=-]?/gi, ' ')
+    .replace(/zahial|захиал|авъя|авья|awii|awya|book/gi, ' ')
     .replace(/[,\-:;|]+/g, ' ')
     .trim();
 
-  if (!name) return null;
-  name = name.split(/\s+/).slice(0, 4).join(' ');
+  if (!name || name.length < 2 || /^\d+$/.test(name)) return '';
+  return name.split(/\s+/).slice(0, 4).join(' ');
+}
+
+function parseBookingParts(text) {
+  return {
+    hour: extractRequestedHour(text),
+    phone: parsePhone(text),
+    name: parseNameOnly(text),
+  };
+}
+
+function looksLikeNameOnly(text) {
+  const trimmed = String(text || '').trim();
+  const name = parseNameOnly(trimmed);
+  if (!name || name !== trimmed) return false;
+  if (trimmed.length < 2 || trimmed.length > 40) return false;
+  if (includesAny(trimmed, ['сайн', 'sain', 'hi', 'hello', 'help', 'байршил', 'bairshil', 'утас', 'utas'])) {
+    return false;
+  }
+  return true;
+}
+
+function parseNameAndPhone(text) {
+  const phone = parsePhone(text);
+  const name = parseNameOnly(text);
+  if (!phone || !name) return null;
   return { name, phone };
 }
 
 function buildBookingFormatReply(extra = '') {
   const lines = [
-    'Хэрэв та цаг захиалах бол нэр, утасны дугаар, цагаа нэг мессежээр ингэж бичнэ үү.',
-    `Жишээ: ${BOOKING_EXAMPLE}`,
+    'Хэрэв та цаг захиалах бол нэр, утасны дугаар, цагаа дарааллаар бичнэ үү.',
+    '1. Нэр — Жишээ: Бат',
+    '2. Утас — Жишээ: 99112233',
+    '3. Цаг — Жишээ: 13 цаг',
+    `Эсвэл нэг мессежээр: ${BOOKING_EXAMPLE}`,
   ];
   if (extra) lines.unshift(extra);
   return lines.join('\n');
 }
 
-async function continuePendingBooking(userText, company, senderId) {
-  const key = pendingKey(company, senderId);
-  const pending = pendingBookings.get(key);
-  if (!pending) return null;
+function getNextBookingPrompt(pending) {
+  if (!pending.name) return 'Нэрээ бичнэ үү. Жишээ: Бат';
+  if (!pending.phone) return 'Утасны дугаараа бичнэ үү. Жишээ: 99112233';
+  if (!pending.hour) return 'Захиалах цагаа бичнэ үү. Жишээ: 13 цаг';
+  return null;
+}
 
-  if (includesAny(userText, ['болих', 'bolih', 'цуцал', 'tsutsal', 'cancel'])) {
+function createEmptyPending(company) {
+  return {
+    companyId: company.id,
+    name: '',
+    phone: '',
+    hour: null,
+    date: '',
+    createdAt: Date.now(),
+  };
+}
+
+function mergePendingFromMessage(pending, userText, context) {
+  const text = String(userText || '').toLowerCase();
+  const parts = parseBookingParts(userText);
+
+  if (parts.name) pending.name = parts.name;
+  if (parts.phone) pending.phone = parts.phone;
+  if (parts.hour) {
+    pending.hour = parts.hour;
+    pending.date = includesAny(text, ['маргааш', 'margaash']) ? context.tomorrow : context.today;
+  }
+  if (!pending.date && pending.hour) pending.date = context.today;
+
+  return pending;
+}
+
+async function validatePendingSlot(pending, context) {
+  if (!pending.hour) return { ok: true };
+
+  const label = scheduleService.hourLabel(pending.hour);
+  const available =
+    pending.date === context.tomorrow
+      ? Array.isArray(context.tomorrowAvailable)
+        ? context.tomorrowAvailable
+        : []
+      : Array.isArray(context.todayAvailable)
+        ? context.todayAvailable
+        : [];
+
+  if (!available.includes(label)) {
+    const dateLabel = pending.date === context.tomorrow ? 'Маргааш' : 'Өнөөдөр';
+    return {
+      ok: false,
+      message: available.length
+        ? `Уучлаарай, ${label} цаг боломжгүй байна. ${dateLabel} сул цагууд: ${available.join(', ')}`
+        : `${dateLabel} захиалга авахгүй өдөр.`,
+    };
+  }
+
+  return { ok: true };
+}
+
+async function processBookingFlow(userText, company, senderId, context) {
+  const key = pendingKey(company, senderId);
+  const text = String(userText || '').toLowerCase();
+  let pending = pendingBookings.get(key);
+
+  if (pending && includesAny(userText, ['болих', 'bolih', 'цуцал', 'tsutsal', 'cancel'])) {
     pendingBookings.delete(key);
     return 'Захиалга цуцлагдлаа.';
   }
 
-  const info = parseNameAndPhone(userText);
-  if (!info) {
-    return buildBookingFormatReply('Захиалга баталгаажуулахын тулд нэр, утас, цагаа илгээнэ үү.');
+  const parts = parseBookingParts(userText);
+  const hasBookingSignal =
+    isBookingIntent(text) ||
+    parts.hour ||
+    parts.phone ||
+    (parts.name && pending) ||
+    looksLikeNameOnly(userText);
+
+  if (!pending && !hasBookingSignal) return null;
+
+  if (!pending) pending = createEmptyPending(company);
+
+  const hadHour = pending.hour;
+  pending = mergePendingFromMessage(pending, userText, context);
+  pendingBookings.set(key, pending);
+
+  if (pending.hour && pending.hour !== hadHour) {
+    const slotCheck = await validatePendingSlot(pending, context);
+    if (!slotCheck.ok) {
+      pending.hour = null;
+      pending.date = '';
+      pendingBookings.set(key, pending);
+      return `${slotCheck.message}\n${getNextBookingPrompt(pending)}`;
+    }
   }
+
+  const prompt = getNextBookingPrompt(pending);
+  if (prompt) return prompt;
 
   try {
     await scheduleService.createBooking(
       company,
       pending.date,
       pending.hour,
-      info.name,
-      info.phone
+      pending.name,
+      pending.phone
     );
     pendingBookings.delete(key);
-    return `Баталгаажлаа. ${pending.date} өдөр ${scheduleService.hourLabel(pending.hour)} цагт ${info.name} нэрээр таны захиалга бүртгэгдлээ.`;
+    return `Баталгаажлаа. ${pending.date} өдөр ${scheduleService.hourLabel(pending.hour)} цагт ${pending.name} нэрээр таны захиалга бүртгэгдлээ.`;
   } catch (err) {
     pendingBookings.delete(key);
-    logError('Pending booking create', err);
+    logError('Booking create', err);
     return 'Уучлаарай, энэ цаг дөнгөж сая боломжгүй боллоо. Өөр цаг сонгоно уу.';
   }
 }
@@ -318,52 +430,6 @@ function isBookingIntent(text) {
     'burtg',
     'book',
   ]);
-}
-
-async function tryCreateChatBooking(userText, company, senderId, context) {
-  const text = String(userText || '').toLowerCase();
-  const hour = extractRequestedHour(text);
-
-  if (isBookingIntent(text) && !hour) {
-    return buildBookingFormatReply();
-  }
-
-  const info = parseNameAndPhone(userText);
-  const wantsBooking = isBookingIntent(text) || (hour && info);
-  if (!hour || !wantsBooking) return null;
-
-  const date = includesAny(text, ['маргааш', 'margaash']) ? context.tomorrow : context.today;
-  const available =
-    date === context.tomorrow
-      ? Array.isArray(context.tomorrowAvailable)
-        ? context.tomorrowAvailable
-        : []
-      : Array.isArray(context.todayAvailable)
-        ? context.todayAvailable
-        : [];
-  const label = scheduleService.hourLabel(hour);
-
-  if (!available.includes(label)) {
-    return available.length
-      ? `Уучлаарай, ${label} цаг боломжгүй байна. Сул цагууд: ${available.join(', ')}`
-      : date === context.tomorrow
-        ? 'Маргааш захиалга авахгүй өдөр өө'
-        : 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
-  }
-
-  if (!info) {
-    pendingBookings.set(pendingKey(company, senderId), {
-      companyId: company.id,
-      date,
-      hour,
-      createdAt: Date.now(),
-    });
-    return buildBookingFormatReply(`${date} өдөр ${label} цагийг сонголоо. Одоо нэр, утас, цагаа илгээнэ үү.`);
-  }
-
-  await scheduleService.createBooking(company, date, hour, info.name, info.phone);
-
-  return `Баталгаажлаа. ${date} өдөр ${label} цагт ${info.name} нэрээр таны захиалга бүртгэгдлээ.`;
 }
 
 function buildDirectReply(userText, company, context) {
@@ -446,7 +512,7 @@ function buildSystemPrompt(company, context) {
   - Дүрэм 2 (Маргаашийн цаг асуух): Хэрэглэгч маргаашийн цаг асуухад хэрэв маргааш нь амардаг өдөр (эсвэл хуваарьгүй) бол шууд 'Маргааш ажиллахгүй өдөр өө' гэж хариулна.
   - Дүрэм 3 (Байршил асуух): Хэрэглэгч байршил хаана вэ гэж асуувал ямар ч илүү дутуу үг, тайлбар хэлэлгүйгээр ШУУД зөвхөн энэ Google Map линкийг өгнө: ${locationLink}
   - Дүрэм 4 (Лавлах утас асуух): Хэрэглэгч лавлах утас асуувал ШУУД яг ингэж хариулна: '${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.'
-  - Дүрэм 5 (Цаг захиалах): Хэрэглэгч цаг захиалахыг хүсвэл заавал дараах форматаар бичихийг заана: "нэр, утасны дугаар, цаг". Жишээ: ${BOOKING_EXAMPLE}. Нэг мессежээр бүгдийг бичиж болно.
+  - Дүрэм 5 (Цаг захиалах): Заавал 3 зүйл авна — нэр, утас (8 орон), цаг. Дутуу байвал дарааллаар асуу: эхлээд нэр, дараа нь утас, эцэст цаг. Жишээ нэг мессежээр: ${BOOKING_EXAMPLE}
 
 Контекст:
 - Өнөөдөр: ${context.today}
