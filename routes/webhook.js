@@ -3,6 +3,7 @@ const axios = require('axios');
 const Groq = require('groq-sdk');
 const companyService = require('../services/companyService');
 const scheduleService = require('../services/scheduleService');
+const chatSessionService = require('../services/chatSessionService');
 
 const router = express.Router();
 
@@ -105,7 +106,7 @@ router.post('/', (req, res) => {
     if (body.object === 'page') {
       for (const entry of body.entry || []) {
         for (const event of entry.messaging || []) {
-          handleMessagingEvent(entry, event).catch((err) => logError('Event боловсруулах', err));
+          dispatchMessagingEvent(entry, event).catch((err) => logError('Event боловсруулах', err));
         }
       }
     }
@@ -116,7 +117,40 @@ router.post('/', (req, res) => {
   }
 });
 
-async function handleMessagingEvent(entry, event) {
+async function dispatchMessagingEvent(entry, event) {
+  if (event.read) {
+    return handleReadEvent(entry, event);
+  }
+  if (event.message || event.postback) {
+    return handleIncomingMessage(entry, event);
+  }
+}
+
+async function handleReadEvent(entry, event) {
+  const pageId = String(entry.id || '');
+  const senderId = String(event.sender?.id || '');
+  const customerId = String(event.recipient?.id || '');
+
+  // Page (ажилтан) хэрэглэгчийн чатыг нээж уншсан үед sender = page, recipient = хэрэглэгч
+  if (!pageId || senderId !== pageId || !customerId) return;
+
+  const company = await companyService.findCompanyByPage(entry);
+  if (!company) {
+    console.warn('[Messenger] Read event: компани олдсонгүй', { pageId, customerId });
+    return;
+  }
+
+  const session = await chatSessionService.setHumanActive(company, customerId);
+  pendingBookings.delete(pendingKey(company, customerId));
+  console.log('[Messenger] Human takeover идэвхжлээ:', {
+    company: company.username,
+    customerId,
+    expiresAt: session.expiresAt,
+    watermark: event.read?.watermark,
+  });
+}
+
+async function handleIncomingMessage(entry, event) {
   const senderId = event.sender?.id;
   if (!senderId || event.message?.is_echo) return;
 
@@ -143,6 +177,14 @@ async function handleMessagingEvent(entry, event) {
 
   try {
     const pageToken = company.pageToken || company.page_token || '';
+
+    if (await chatSessionService.isHumanActive(company, senderId)) {
+      console.log('[Messenger] Human active — AI алгасав:', {
+        company: company.username,
+        senderId,
+      });
+      return;
+    }
 
     if (company.isAcceptingOrders === false) {
       await sendTextMessage(senderId, ORDERS_PAUSED_REPLY, pageToken);
