@@ -42,6 +42,17 @@ function extractPrimaryFacebookPageId(value) {
   return keys.find((key) => /^\d{8,}$/.test(key)) || keys[1] || keys[0] || '';
 }
 
+function parseIsAcceptingOrders(value, existing) {
+  if (value === undefined || value === null) {
+    if (existing?.isAcceptingOrders !== undefined) return !!existing.isAcceptingOrders;
+    return true;
+  }
+  if (typeof value === 'boolean') return value;
+  if (value === 'true' || value === 1 || value === '1') return true;
+  if (value === 'false' || value === 0 || value === '0') return false;
+  return true;
+}
+
 function normalizeCompanyInput(input = {}, existing = null) {
   const username = normalizeUsername(input.username ?? existing?.username);
   const companyName = String(input.company_name ?? input.companyName ?? existing?.company_name ?? '').trim();
@@ -86,6 +97,7 @@ function normalizeCompanyInput(input = {}, existing = null) {
         existing?.website_link ??
         (username ? `${process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com'}/${username}` : '')
     ).trim(),
+    isAcceptingOrders: parseIsAcceptingOrders(input.isAcceptingOrders, existing),
   };
 }
 
@@ -115,6 +127,7 @@ function toPublicCompany(doc, { includeSecrets = false } = {}) {
     info_phone: doc.info_phone || '',
     location_link: doc.location_link || '',
     website_link: doc.website_link || '',
+    isAcceptingOrders: doc.isAcceptingOrders !== false,
     createdAt: doc.createdAt || null,
     updatedAt: doc.updatedAt || null,
   };
@@ -144,6 +157,7 @@ function localVendorToCompany(v) {
     website_link:
       v.website_link ||
       `${process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com'}/${v.username}`,
+    isAcceptingOrders: v.isAcceptingOrders !== false,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   };
@@ -270,6 +284,7 @@ async function createCompany(input) {
     info_phone: company.info_phone,
     location_link: company.location_link,
     website_link: company.website_link,
+    isAcceptingOrders: company.isAcceptingOrders,
     createdAt: now,
     updatedAt: now,
   };
@@ -353,6 +368,7 @@ async function updateCompany(idOrUsername, input) {
     info_phone: merged.info_phone,
     location_link: merged.location_link,
     website_link: merged.website_link,
+    isAcceptingOrders: merged.isAcceptingOrders,
     updatedAt: now,
   };
   save();

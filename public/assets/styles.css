@@ -308,4 +308,52 @@ input:focus {
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .mt { margin-top: 16px; }
-.row-actions { display: flex; gap: 8px; }
+.row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Orders toggle */
+.toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  margin-right: 4px;
+}
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 999px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-input:checked + .toggle-slider {
+  background: #22c55e;
+}
+.toggle-input:checked + .toggle-slider::after {
+  transform: translateX(18px);
+}
+.toggle-label {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 72px;
+}

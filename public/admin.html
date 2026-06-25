@@ -207,6 +207,34 @@
       }
     });
 
+    function createOrdersToggle(v) {
+      const accepting = v.isAcceptingOrders !== false;
+      const input = el('input', { type: 'checkbox', class: 'toggle-input' });
+      input.checked = accepting;
+      const labelEl = el('span', { class: 'toggle-label', text: accepting ? 'Захиалга ON' : 'Захиалга OFF' });
+      input.addEventListener('change', async () => {
+        const enabled = input.checked;
+        labelEl.textContent = enabled ? 'Захиалга ON' : 'Захиалга OFF';
+        try {
+          await api('/api/admin/vendors/' + v.username + '/accepting-orders', {
+            method: 'PATCH',
+            token: TK.get(),
+            body: { isAcceptingOrders: enabled },
+          });
+          v.isAcceptingOrders = enabled;
+        } catch (e) {
+          input.checked = !enabled;
+          labelEl.textContent = input.checked ? 'Захиалга ON' : 'Захиалга OFF';
+          alert(e.message);
+        }
+      });
+      return el('label', { class: 'toggle-wrap', title: 'AI чат захиалга авах төлөв' }, [
+        input,
+        el('span', { class: 'toggle-slider' }),
+        labelEl,
+      ]);
+    }
+
     async function loadVendors() {
       const wrap = document.getElementById('vendorList');
       try {
@@ -233,6 +261,7 @@
               ]),
             ]),
             el('div', { class: 'row-actions' }, [
+              createOrdersToggle(v),
               el('button', { class: 'btn ghost small', text: 'Засварлах', onclick: () => fillForm(v) }),
               el('button', { class: 'btn ghost small danger', text: 'Устгах', onclick: () => removeVendor(v) }),
             ]),
