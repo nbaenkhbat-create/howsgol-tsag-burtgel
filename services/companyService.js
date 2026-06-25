@@ -3,6 +3,38 @@ const { getData, save, nextId } = require('../db');
 const { getFirestore, isFirebaseConfigured } = require('./firebase');
 
 const RESERVED = new Set(['admin-secretify', 'api', 'assets', 'favicon.ico', 'robots.txt', 'health']);
+const FIRESTORE_REQUIRED_MSG =
+  'Компаниуд зөвхөн Firebase Firestore дээр хадгалагдана. Render дээр FIREBASE_CLIENT_EMAIL болон FIREBASE_PRIVATE_KEY тохируулна уу.';
+
+function isProductionEnv() {
+  return process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+}
+
+function firestoreRequiredError() {
+  const err = new Error(FIRESTORE_REQUIRED_MSG);
+  err.status = 503;
+  return err;
+}
+
+async function useCompanyFirestore() {
+  if (isFirebaseConfigured()) return true;
+  if (isProductionEnv()) throw firestoreRequiredError();
+  return false;
+}
+
+async function getStorageStatus() {
+  const configured = isFirebaseConfigured();
+  return {
+    backend: configured ? 'firestore' : isProductionEnv() ? 'unconfigured' : 'local-json-dev',
+    persistent: configured,
+    production: isProductionEnv(),
+    message: configured
+      ? 'Компаниуд Firestore companies collection дээр байнга хадгалагдана. Зөвхөн Global Admin-ийн Устгах товчоор л устгана.'
+      : isProductionEnv()
+        ? FIRESTORE_REQUIRED_MSG
+        : 'Local dev: data/db.json (зөвхөн локал). Production дээр Firestore заавал.',
+  };
+}
 
 function normalizeUsername(username) {
   return String(username || '').trim().toLowerCase();
@@ -163,12 +195,8 @@ function localVendorToCompany(v) {
   };
 }
 
-async function useFirestore() {
-  return isFirebaseConfigured();
-}
-
 async function listCompanies({ includeSecrets = false } = {}) {
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     const snap = await getFirestore().collection('companies').get();
     return snap.docs
       .map((doc) => toPublicCompany({ id: doc.id, ...doc.data() }, { includeSecrets }))
@@ -182,7 +210,7 @@ async function findCompanyByUsername(username, { includePassword = false } = {})
   const uname = normalizeUsername(username);
   if (!uname) return null;
 
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     const snap = await getFirestore()
       .collection('companies')
       .where('username', '==', uname)
@@ -203,7 +231,7 @@ async function findCompanyByPage(entry = {}) {
   const pageId = String(entry.id || entry.page_id || '').trim();
   if (!pageId) return null;
 
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     const db = getFirestore();
     const fields = ['facebookPageId', 'page_id', 'pageId'];
     for (const field of fields) {
@@ -262,7 +290,7 @@ async function createCompany(input) {
 
   const now = new Date().toISOString();
 
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     const docRef = getFirestore().collection('companies').doc(company.username);
     await docRef.set({ ...company, createdAt: now, updatedAt: now });
     return toPublicCompany({ id: docRef.id, ...company, createdAt: now, updatedAt: now });
@@ -301,32 +329,6 @@ async function deleteDocsInChunks(db, docs) {
   }
 }
 
-async function ensureDefaultCompany() {
-  if (String(process.env.DEFAULT_COMPANY_AUTO_SEED || '').toLowerCase() !== 'true') {
-    return null;
-  }
-
-  const username = normalizeUsername(process.env.DEFAULT_COMPANY_USERNAME || 'bayr');
-  if (!username) return null;
-
-  const companies = await listCompanies();
-  if (companies.length > 0) return null;
-
-  console.log('[Company] Компани хоосон тул default company seed хийж байна:', username);
-  return createCompany({
-    company_name: process.env.DEFAULT_COMPANY_NAME || 'bayr',
-    phone: process.env.DEFAULT_COMPANY_PHONE || '12345678',
-    username,
-    password: process.env.DEFAULT_COMPANY_PASSWORD || '12345678',
-    page_link: process.env.DEFAULT_COMPANY_PAGE_LINK || 'https://www.facebook.com/search/top?q=nowijufaqae',
-    info_phone: process.env.DEFAULT_COMPANY_INFO_PHONE || process.env.DEFAULT_COMPANY_PHONE || '12345677',
-    location_link: process.env.DEFAULT_COMPANY_LOCATION_LINK || 'https://maps.app.goo.gl/tppoPZmyL4IMq29EFG',
-    website_link:
-      process.env.DEFAULT_COMPANY_WEBSITE_LINK ||
-      `${process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com'}/${username}`,
-  });
-}
-
 async function updateCompany(idOrUsername, input) {
   const key = normalizeUsername(idOrUsername);
   const existing = await findCompanyByUsername(key, { includePassword: true });
@@ -340,7 +342,7 @@ async function updateCompany(idOrUsername, input) {
   validateCompany(merged, { requirePassword: false });
   const now = new Date().toISOString();
 
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     await getFirestore().collection('companies').doc(key).set(
       {
         ...merged,
@@ -376,8 +378,9 @@ async function updateCompany(idOrUsername, input) {
 }
 
 async function deleteCompany(username) {
+  // Компани зөвхөн Global Admin DELETE /api/admin/vendors/:username-аар устгагдана.
   const uname = normalizeUsername(username);
-  if (await useFirestore()) {
+  if (await useCompanyFirestore()) {
     const db = getFirestore();
     const company = await findCompanyByUsername(uname);
     const companyIds = [uname, company?.id].filter(Boolean);
@@ -416,12 +419,12 @@ module.exports = {
   normalizeUsername,
   extractFacebookPageKeys,
   toPublicCompany,
+  getStorageStatus,
   listCompanies,
   findCompanyByUsername,
   findCompanyByPage,
   searchCompanies,
   createCompany,
-  ensureDefaultCompany,
   updateCompany,
   deleteCompany,
   verifyCompanyLogin,

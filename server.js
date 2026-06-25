@@ -5,7 +5,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getData, save } = require('./db');
-const { logFirebaseStatus } = require('./services/firebase');
+const { logFirebaseStatus, isFirebaseConfigured } = require('./services/firebase');
 const companyService = require('./services/companyService');
 const scheduleService = require('./services/scheduleService');
 const webhookRoutes = require('./routes/webhook');
@@ -352,7 +352,27 @@ const page = (file) => (_req, res) => res.sendFile(path.join(__dirname, 'public'
 
 app.get('/', page('index.html'));
 app.get('/admin-secretify', page('admin.html'));
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', asyncRoute(async (_req, res) => {
+  const storage = await companyService.getStorageStatus();
+  let companyCount = null;
+  if (isFirebaseConfigured()) {
+    const companies = await companyService.listCompanies();
+    companyCount = companies.length;
+  }
+  res.json({
+    ok: storage.persistent || !storage.production,
+    storage: storage.backend,
+    persistent: storage.persistent,
+    companyCount,
+    message: storage.message,
+  });
+}));
+
+app.get('/api/admin/storage', auth('admin'), asyncRoute(async (_req, res) => {
+  const storage = await companyService.getStorageStatus();
+  const companies = storage.persistent ? await companyService.listCompanies() : [];
+  res.json({ ...storage, companyCount: companies.length });
+}));
 
 app.get('/:username/admin', (req, res, next) => {
   if (RESERVED.has(req.params.username.toLowerCase())) return next();
@@ -387,9 +407,23 @@ setInterval(() => {
     console.error('[Bookings] Давтамжит cleanup алдаа:', err);
   });
 }, 24 * 60 * 60 * 1000);
-companyService.ensureDefaultCompany().catch((err) => {
-  console.error('[Company] Default company seed алдаа:', err);
-});
+
+async function logCompanyStorageOnStartup() {
+  try {
+    const storage = await companyService.getStorageStatus();
+    console.log('[Company] Storage:', storage.backend);
+    console.log('[Company]', storage.message);
+    if (storage.persistent) {
+      const companies = await companyService.listCompanies();
+      console.log('[Company] Firestore companies:', companies.length);
+    }
+  } catch (err) {
+    console.error('[Company] Storage шалгалт алдаа:', err.message);
+  }
+}
+
+logCompanyStorageOnStartup();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Цаг бүртгэлийн систем ажиллаж байна:  port ${PORT}`);
 });
