@@ -11,6 +11,7 @@ const GROQ_MODEL = 'llama-3.3-70b-specdec';
 const GROQ_MODEL_FALLBACK = 'llama-3.3-70b-versatile';
 const PUBLIC_HOME = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
 const PUBLIC_ERROR_REPLY = 'Уучлаарай, AI хариу өгч чадсангүй. https://howsgol-tsag-burtgel.onrender.com/';
+const BOOKING_EXAMPLE = 'Бат, 99112233, 13 цаг';
 
 function getEnv(name) {
   return (process.env[name] || '').trim();
@@ -253,12 +254,22 @@ function parseNameAndPhone(text) {
     .replace(/ner\s*[:=-]?/gi, ' ')
     .replace(/утас\s*[:=-]?/gi, ' ')
     .replace(/utas\s*[:=-]?/gi, ' ')
+    .replace(/(?:^|\D)([01]?\d|2[0-4])(?::[0-5]\d)?\s*(?:цаг|tsag|h)?/gi, ' ')
     .replace(/[,\-:;|]+/g, ' ')
     .trim();
 
   if (!name) return null;
   name = name.split(/\s+/).slice(0, 4).join(' ');
   return { name, phone };
+}
+
+function buildBookingFormatReply(extra = '') {
+  const lines = [
+    'Хэрэв та цаг захиалах бол нэр, утасны дугаар, цагаа нэг мессежээр ингэж бичнэ үү.',
+    `Жишээ: ${BOOKING_EXAMPLE}`,
+  ];
+  if (extra) lines.unshift(extra);
+  return lines.join('\n');
 }
 
 async function continuePendingBooking(userText, company, senderId) {
@@ -273,7 +284,7 @@ async function continuePendingBooking(userText, company, senderId) {
 
   const info = parseNameAndPhone(userText);
   if (!info) {
-    return 'Захиалга баталгаажуулахын тулд нэр болон 8 оронтой утасны дугаараа нэг мессежээр илгээнэ үү. Жишээ: Бат 99112233';
+    return buildBookingFormatReply('Захиалга баталгаажуулахын тулд нэр, утас, цагаа илгээнэ үү.');
   }
 
   try {
@@ -312,7 +323,14 @@ function isBookingIntent(text) {
 async function tryCreateChatBooking(userText, company, senderId, context) {
   const text = String(userText || '').toLowerCase();
   const hour = extractRequestedHour(text);
-  if (!hour || !isBookingIntent(text)) return null;
+
+  if (isBookingIntent(text) && !hour) {
+    return buildBookingFormatReply();
+  }
+
+  const info = parseNameAndPhone(userText);
+  const wantsBooking = isBookingIntent(text) || (hour && info);
+  if (!hour || !wantsBooking) return null;
 
   const date = includesAny(text, ['маргааш', 'margaash']) ? context.tomorrow : context.today;
   const available =
@@ -333,7 +351,6 @@ async function tryCreateChatBooking(userText, company, senderId, context) {
         : 'Уучлаарай, өнөөдөр захиалга авахгүй өдөр.';
   }
 
-  const info = parseNameAndPhone(userText);
   if (!info) {
     pendingBookings.set(pendingKey(company, senderId), {
       companyId: company.id,
@@ -341,7 +358,7 @@ async function tryCreateChatBooking(userText, company, senderId, context) {
       hour,
       createdAt: Date.now(),
     });
-    return `${date} өдөр ${label} цагийг баталгаажуулахын тулд нэр болон утасны дугаараа илгээнэ үү. Жишээ: Бат 99112233`;
+    return buildBookingFormatReply(`${date} өдөр ${label} цагийг сонголоо. Одоо нэр, утас, цагаа илгээнэ үү.`);
   }
 
   await scheduleService.createBooking(company, date, hour, info.name, info.phone);
@@ -372,11 +389,11 @@ function buildDirectReply(userText, company, context) {
     ])
   ) {
     const companyName = company.company_name || company.companyName || username;
-    return `Сайн байна уу. ${companyName}-ийн цаг захиалгын туслах байна. Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно. Цаг захиалах бол ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаарай.`;
+    return `Сайн байна уу. ${companyName}-ийн цаг захиалгын туслах байна. Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно.\n${buildBookingFormatReply()}`;
   }
 
   if (includesAny(text, ['юу хийж', 'yu hiij', 'юу хийдэг', 'yu hiideg', 'тусламж', 'help', 'menu'])) {
-    return `Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно. Цаг захиалах бол ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаарай.`;
+    return `Та өнөөдрийн цаг, маргаашийн цаг, байршил, лавлах утас гэж асууж болно.\n${buildBookingFormatReply()}`;
   }
 
   if (includesAny(text, ['байршил', 'bairshil', 'хаана', 'haana', 'хаяг', 'hayg', 'map'])) {
@@ -409,7 +426,7 @@ function buildAvailableTimesReply(title, availableTimes, company) {
   const locationLink = company.location_link || '';
   const parts = [
     `${title}: ${availableTimes.join(', ')}`,
-    'Хэрэв та захиалга өгөх бол нэр, утсаа ингэж бичнэ үү: Бат 99112233',
+    buildBookingFormatReply(),
   ];
   if (locationLink) parts.push(locationLink);
   parts.push(`Эсвэл ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайгаад сул цагаа хараад захиалга өгч болно.`);
@@ -429,6 +446,7 @@ function buildSystemPrompt(company, context) {
   - Дүрэм 2 (Маргаашийн цаг асуух): Хэрэглэгч маргаашийн цаг асуухад хэрэв маргааш нь амардаг өдөр (эсвэл хуваарьгүй) бол шууд 'Маргааш ажиллахгүй өдөр өө' гэж хариулна.
   - Дүрэм 3 (Байршил асуух): Хэрэглэгч байршил хаана вэ гэж асуувал ямар ч илүү дутуу үг, тайлбар хэлэлгүйгээр ШУУД зөвхөн энэ Google Map линкийг өгнө: ${locationLink}
   - Дүрэм 4 (Лавлах утас асуух): Хэрэглэгч лавлах утас асуувал ШУУД яг ингэж хариулна: '${infoPhone}. Хэрэв та өөрийн хүссэн цагаа авахыг хүсвэл энэ ${PUBLIC_HOME}/ link рүү ороод ${username} гэж хайж байгаад цагаа сонгоод бүртгэлээ хийж болно.'
+  - Дүрэм 5 (Цаг захиалах): Хэрэглэгч цаг захиалахыг хүсвэл заавал дараах форматаар бичихийг заана: "нэр, утасны дугаар, цаг". Жишээ: ${BOOKING_EXAMPLE}. Нэг мессежээр бүгдийг бичиж болно.
 
 Контекст:
 - Өнөөдөр: ${context.today}
