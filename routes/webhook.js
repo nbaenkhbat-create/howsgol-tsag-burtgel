@@ -11,7 +11,6 @@ const GROQ_MODEL = 'llama-3.3-70b-specdec';
 const GROQ_MODEL_FALLBACK = 'llama-3.3-70b-versatile';
 const PUBLIC_HOME = process.env.PUBLIC_BASE_URL || 'https://howsgol-tsag-burtgel.onrender.com';
 const PUBLIC_ERROR_REPLY = 'Уучлаарай, AI хариу өгч чадсангүй. https://howsgol-tsag-burtgel.onrender.com/';
-const ORDERS_PAUSED_REPLY = 'Уучлаарай, манайх одоогоор захиалга авахгүй байна.';
 
 function getEnv(name) {
   return (process.env[name] || '').trim();
@@ -186,8 +185,14 @@ async function handleIncomingMessage(entry, event) {
       return;
     }
 
-    if (company.isAcceptingOrders === false) {
-      await sendTextMessage(senderId, ORDERS_PAUSED_REPLY, pageToken);
+    const schedulePause = await scheduleService.isAiChatPaused(company);
+    if (schedulePause.paused) {
+      console.log('[Messenger] Vendor хуваарь pause — AI алгасав:', {
+        company: company.username,
+        senderId,
+        reason: schedulePause.reason,
+        hour: schedulePause.hour,
+      });
       return;
     }
 

@@ -5,10 +5,14 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 const DEFAULT_BOOKING_RETENTION_DAYS = 60;
 
 function todayStr(offsetDays = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  const tz = d.getTimezoneOffset() * 60000;
-  return new Date(d - tz).toISOString().slice(0, 10);
+  const tz = process.env.BOOKING_TIMEZONE || 'Asia/Ulaanbaatar';
+  const base = new Date(Date.now() + offsetDays * 86400000);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(base);
 }
 
 function hourLabel(hour) {
@@ -128,6 +132,31 @@ async function getAiScheduleContext(company) {
     todayClosed: todayDay.dayBlocked || todayHours.length === 0,
     tomorrowClosed: tomorrowDay.dayBlocked || tomorrowHours.length === 0,
   };
+}
+
+function getCurrentSlotHour() {
+  const tz = process.env.BOOKING_TIMEZONE || 'Asia/Ulaanbaatar';
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date())
+  );
+  return hour === 0 ? 24 : hour;
+}
+
+async function isAiChatPaused(company) {
+  const id = companyKey(company);
+  const today = todayStr(0);
+  const dayBlocked = await isDayBlocked(id, today);
+  if (dayBlocked) {
+    return { paused: true, reason: 'blocked_day' };
+  }
+
+  const blockedHours = await getBlockedHours(id, today);
+  const currentHour = getCurrentSlotHour();
+  if (blockedHours.includes(currentHour)) {
+    return { paused: true, reason: 'blocked_hour', hour: currentHour };
+  }
+
+  return { paused: false };
 }
 
 async function setBlockedHours(companyOrId, date, hours) {
@@ -328,6 +357,7 @@ module.exports = {
   getDaySlots,
   getAvailableHourLabels,
   getAiScheduleContext,
+  isAiChatPaused,
   setBlockedHours,
   listBlockedDays,
   setBlockedDay,

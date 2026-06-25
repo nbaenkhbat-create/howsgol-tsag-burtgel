@@ -92,7 +92,6 @@ function cleanCompanyPayload(body = {}, existingUsername = '') {
     website_link:
       body.website_link ||
       (username ? `${PUBLIC_BASE_URL}/${String(username).trim().toLowerCase()}` : ''),
-    isAcceptingOrders: body.isAcceptingOrders,
   };
 }
 
@@ -155,19 +154,6 @@ app.put(
       req.params.username,
       cleanCompanyPayload(req.body, req.params.username)
     );
-    res.json({ vendor: company });
-  })
-);
-
-app.patch(
-  '/api/admin/vendors/:username/accepting-orders',
-  auth('admin'),
-  asyncRoute(async (req, res) => {
-    const { isAcceptingOrders } = req.body || {};
-    if (typeof isAcceptingOrders !== 'boolean') {
-      return res.status(400).json({ error: 'isAcceptingOrders (true/false) шаардлагатай' });
-    }
-    const company = await companyService.updateCompany(req.params.username, { isAcceptingOrders });
     res.json({ vendor: company });
   })
 );
