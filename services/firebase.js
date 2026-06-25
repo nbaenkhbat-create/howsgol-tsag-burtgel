@@ -1,4 +1,6 @@
-const admin = require('firebase-admin');
+const { initializeApp, getApps, getApp, applicationDefault, cert } = require('firebase-admin/app');
+const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
+const { getDatabase: getAdminDatabase } = require('firebase-admin/database');
 
 let app = null;
 let firestore = null;
@@ -81,8 +83,9 @@ function getCredentialState() {
 function getFirebaseApp() {
   if (app) return app;
 
-  if (admin.apps.length) {
-    app = admin.app();
+  const existingApps = getApps();
+  if (existingApps.length) {
+    app = getApp();
     return app;
   }
 
@@ -99,16 +102,15 @@ function getFirebaseApp() {
   }
 
   if (credentials.serviceAccount) {
-    app = admin.initializeApp({
-      credential: admin.credential.cert(credentials.serviceAccount),
+    app = initializeApp({
+      credential: cert(credentials.serviceAccount),
       ...options,
     });
     return app;
   }
 
-  // Render/Google runtime дээр GOOGLE_APPLICATION_CREDENTIALS эсвэл default creds байвал ажиллана.
-  app = admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+  app = initializeApp({
+    credential: applicationDefault(),
     ...options,
   });
   return app;
@@ -120,13 +122,13 @@ function isFirebaseConfigured() {
 
 function getFirestore() {
   if (firestore) return firestore;
-  firestore = getFirebaseApp().firestore();
+  firestore = getAdminFirestore(getFirebaseApp());
   return firestore;
 }
 
 function getRealtimeDb() {
   if (realtimeDb) return realtimeDb;
-  realtimeDb = getFirebaseApp().database();
+  realtimeDb = getAdminDatabase(getFirebaseApp());
   return realtimeDb;
 }
 
@@ -143,7 +145,6 @@ function logFirebaseStatus() {
 }
 
 module.exports = {
-  admin,
   getFirestore,
   getRealtimeDb,
   isFirebaseConfigured,
